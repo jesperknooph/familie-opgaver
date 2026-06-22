@@ -1,4 +1,4 @@
-const CACHE_NAME = "familie-opgaver-v4";
+const CACHE_NAME = "familie-opgaver-v5";
 const ASSETS = [
   "./",
   "./index.html",
@@ -7,6 +7,10 @@ const ASSETS = [
   "./auth.js",
   "./firebase-config.js",
   "./manifest.json",
+  "./favicon.svg",
+  "./favicon-32.png",
+  "./favicon-16.png",
+  "./apple-touch-icon.png",
 ];
 
 self.addEventListener("install", (event) => {
