@@ -1,0 +1,11 @@
+# Static site — no build step. Publish the project root as-is.
+[build]
+  command = ""
+  publish = "."
+
+# Never let the CDN/browser serve a stale service worker, otherwise app updates
+# won't reach already-installed devices. The SW itself controls caching of assets.
+[[headers]]
+  for = "/service-worker.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"

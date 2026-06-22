@@ -1,0 +1,59 @@
+rules_version = '2';
+
+// Security rules for the "familie-opgaver" Firestore database.
+//
+// NOTE ON THE SECURITY MODEL:
+// The app signs in with Firebase Anonymous Authentication, so every request
+// carries an auth token. These rules require that token (request.auth != null),
+// which blocks scripts that merely have the public config but never load the
+// app. They also enforce:
+//   • only the two known collections (`tasks`, `members`) are usable
+//   • every document must match a strict shape (fields + types + size caps)
+//   • everything else is denied
+// This is NOT per-person identity (anonymous = any visitor who loads the app can
+// get a token). True per-user access control would require a real sign-in method
+// (e.g. email/password) tied to each family member.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function memberNames() {
+      return ['Jesper', 'Line', 'Anker', 'Edith'];
+    }
+
+    // --- tasks ---
+    function isValidTask(data) {
+      return data.keys().hasOnly(['label', 'assignedTo', 'done', 'due', 'ts'])
+        && data.label is string && data.label.size() > 0 && data.label.size() <= 500
+        && data.assignedTo in memberNames()
+        && data.done is bool
+        && (data.due == null || (data.due is string && data.due.size() <= 10))
+        && data.ts is number;
+    }
+
+    match /tasks/{taskId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null && isValidTask(request.resource.data);
+      allow delete: if request.auth != null;
+    }
+
+    // --- members (one doc per person, holds the hashed PIN) ---
+    function isValidMember(data) {
+      return data.keys().hasOnly(['pinHash'])
+        && (data.pinHash == null || (data.pinHash is string && data.pinHash.size() <= 64));
+    }
+
+    match /members/{name} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null
+        && name in memberNames()
+        && isValidMember(request.resource.data);
+      allow delete: if false;
+    }
+
+    // --- everything else: denied ---
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
