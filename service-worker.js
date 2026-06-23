@@ -1,4 +1,4 @@
-const CACHE_NAME = "familie-opgaver-v8";
+const CACHE_NAME = "familie-opgaver-v10";
 const ASSETS = [
   "./",
   "./index.html",
@@ -19,6 +19,19 @@ self.addEventListener("install", (event) => {
     caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
   );
   self.skipWaiting();
+});
+
+// Focus an existing window (or open one) when a reminder is tapped.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
+      for (const w of wins) {
+        if ("focus" in w) return w.focus();
+      }
+      if (clients.openWindow) return clients.openWindow("./");
+    })
+  );
 });
 
 self.addEventListener("activate", (event) => {

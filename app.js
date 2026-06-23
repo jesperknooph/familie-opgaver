@@ -22,7 +22,24 @@ let currentUser = null;
 let newAssigned = null;
 let newEmoji = "";
 let newDue = "";
+let newTime = ""; // "HH:MM" or ""
+let newAlarm = false; // notify at the task's time
+let newRepeat = null; // null | "daily" | "2day" | "weekly" | "2week"
+
+// Pending reminder timers, keyed by task id, so we can cancel/reschedule cleanly.
+const reminderTimers = new Map();
 let showTemplates = false;
+
+// Recurrence options shown in the add card, plus the step (in days) each implies.
+const REPEAT_OPTIONS = [
+  { id: null, label: "Aldrig" },
+  { id: "daily", label: "Dagligt" },
+  { id: "2day", label: "Hver 2. dag" },
+  { id: "weekly", label: "Ugentligt" },
+  { id: "2week", label: "Hver 2. uge" },
+];
+const REPEAT_DAYS = { daily: 1, "2day": 2, weekly: 7, "2week": 14 };
+const REPEAT_LABELS = { daily: "Dagligt", "2day": "Hver 2. dag", weekly: "Ugentligt", "2week": "Hver 2. uge" };
 let view = "idag"; // "idag" | "liste" | "uge"
 let weekOffset = 0; // 0 = denne uge
 let connected = false;
@@ -56,6 +73,25 @@ function addDays(d, n) {
   r.setDate(r.getDate() + n);
   return r;
 }
+function parseYmd(s) {
+  const [y, m, d] = s.split("-").map(Number);
+  const r = new Date(y, m - 1, d);
+  r.setHours(0, 0, 0, 0);
+  return r;
+}
+// Next occurrence for a recurring task: step forward from its due date, skipping
+// past any dates already gone (so a long-untouched task lands on a future date).
+function nextDueDate(due, repeat) {
+  const step = REPEAT_DAYS[repeat];
+  if (!step) return due;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  let d = due ? parseYmd(due) : today;
+  do {
+    d = addDays(d, step);
+  } while (d < today);
+  return ymd(d);
+}
 function isoWeek(date) {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const dayNum = (d.getUTCDay() + 6) % 7;
@@ -66,6 +102,46 @@ function isoWeek(date) {
     d.setUTCMonth(0, 1 + ((4 - d.getUTCDay()) + 7) % 7);
   }
   return 1 + Math.ceil((firstThursday - d.getTime()) / 604800000);
+}
+
+// Fire a local notification for a task — via the service worker when possible
+// (more reliable on mobile), falling back to a page Notification.
+function fireReminder(t) {
+  const title = `🔔 ${t.emoji ? t.emoji + " " : ""}${t.label}`;
+  const opts = {
+    body: `Kl. ${t.time} · ${t.assignedTo}`,
+    icon: "icons/icon-192.png?v=2",
+    badge: "icons/icon-192.png?v=2",
+    tag: `task-${t.id}`,
+  };
+  if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+    navigator.serviceWorker.ready
+      .then((reg) => reg.showNotification(title, opts))
+      .catch(() => { try { new Notification(title, opts); } catch (e) {} });
+  } else {
+    try { new Notification(title, opts); } catch (e) {}
+  }
+}
+
+// (Re)schedule timers for every alarmed task that is due today, has a time still
+// ahead of now, and isn't done. Cancels stale timers first. In-app only: these
+// fire while the app/PWA is alive — a phone that has fully closed it may miss them.
+function scheduleReminders() {
+  reminderTimers.forEach((id) => clearTimeout(id));
+  reminderTimers.clear();
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+
+  const now = new Date();
+  const todayStr = ymd(now);
+  tasks.forEach((t) => {
+    if (!t.alarm || t.done || !t.time || t.due !== todayStr) return;
+    const [h, m] = t.time.split(":").map(Number);
+    const fireAt = new Date();
+    fireAt.setHours(h, m, 0, 0);
+    const delay = fireAt.getTime() - now.getTime();
+    if (delay <= 0 || delay > 86_400_000) return; // already passed, or absurdly far
+    reminderTimers.set(t.id, setTimeout(() => fireReminder(t), delay));
+  });
 }
 
 function icon(name, color = "currentColor", size = 19) {
@@ -98,8 +174,11 @@ function taskRow(t) {
       ${emojiTile}
       <div class="task-body">
         <span class="task-label ${t.done ? "done" : ""}">${escapeHtml(t.label)}</span>
-        <span class="task-assignee" style="color:${colorFor(t.assignedTo)}">${t.assignedTo}</span>
+        <span class="task-assignee" style="color:${colorFor(t.assignedTo)}">${t.assignedTo}${
+          t.repeat ? `<span class="task-repeat">🔁 ${REPEAT_LABELS[t.repeat] || ""}</span>` : ""
+        }</span>
       </div>
+      ${t.time ? `<span class="task-time ${t.alarm ? "has-alarm" : ""}">${t.alarm ? "🔔" : "🕐"} ${t.time}</span>` : ""}
       <button class="delete-button" data-delete="${t.id}">${icon("trash", "#D6CFE0", 14)}</button>
     </div>`;
 }
@@ -120,6 +199,16 @@ function listSection(visible) {
     </section>`;
 }
 
+// Within a single day: open tasks first, then by clock time (timed before
+// untimed), then most-recently-added.
+function byTimeThenRecent(a, b) {
+  if (Number(a.done) !== Number(b.done)) return Number(a.done) - Number(b.done);
+  if (a.time && b.time && a.time !== b.time) return a.time < b.time ? -1 : 1;
+  if (a.time && !b.time) return -1;
+  if (!a.time && b.time) return 1;
+  return (b.ts || 0) - (a.ts || 0);
+}
+
 function todaySection(visible) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -128,7 +217,7 @@ function todaySection(visible) {
   const sortOpenFirst = (a, b) =>
     Number(a.done) - Number(b.done) || (b.ts || 0) - (a.ts || 0);
 
-  const dueToday = visible.filter((t) => t.due === todayStr).sort(sortOpenFirst);
+  const dueToday = visible.filter((t) => t.due === todayStr).sort(byTimeThenRecent);
   const overdue = visible
     .filter((t) => t.due && t.due < todayStr && !t.done)
     .sort((a, b) => (a.due < b.due ? -1 : 1));
@@ -201,7 +290,7 @@ function weekSection(visible) {
     const isToday = dStr === todayStr;
     const dayTasks = visible
       .filter((t) => t.due === dStr)
-      .sort((a, b) => Number(a.done) - Number(b.done) || (b.ts || 0) - (a.ts || 0));
+      .sort(byTimeThenRecent);
     days += `
       <div class="day-card ${isToday ? "is-today" : ""}">
         <div class="day-head">
@@ -291,7 +380,12 @@ function renderShell() {
         <span class="date-field-label">Forfald</span>
         <input type="date" class="date-input" id="newDue" />
         <span id="dateClearContainer"></span>
+        <span class="date-field-label">Kl.</span>
+        <input type="time" class="date-input time-input" id="newTime" />
+        <span id="timeClearContainer"></span>
+        <button class="alarm-toggle" id="alarmToggle">🔔 Alarm</button>
       </div>
+      <div class="repeat-row" id="repeatRow"></div>
       <div class="add-row2">
         <div class="assign-row" id="assignRow"></div>
         <button class="add-button" id="addBtn">${icon("plus", "#fff", 16)}</button>
@@ -310,6 +404,10 @@ function renderShell() {
   document.getElementById("newDue").onchange = (e) => {
     newDue = e.target.value;
     updateDateClearButton();
+  };
+  document.getElementById("newTime").onchange = (e) => {
+    newTime = e.target.value;
+    updateTimeClearButton();
   };
   document.getElementById("templateToggle").onclick = () => {
     showTemplates = !showTemplates;
@@ -337,6 +435,53 @@ function updateDateClearButton() {
   } else {
     container.innerHTML = "";
   }
+}
+
+function updateTimeClearButton() {
+  const container = document.getElementById("timeClearContainer");
+  if (!container) return;
+  if (newTime) {
+    container.innerHTML = `<button class="date-clear" id="clearTime">ryd</button>`;
+    document.getElementById("clearTime").onclick = () => {
+      newTime = "";
+      document.getElementById("newTime").value = "";
+      updateTimeClearButton();
+    };
+  } else {
+    container.innerHTML = "";
+  }
+}
+
+// The 🔔 Alarm toggle. Turning it on prompts for notification permission
+// (must happen inside the click gesture), and won't engage if blocked.
+function renderAlarmToggle() {
+  const btn = document.getElementById("alarmToggle");
+  if (!btn) return;
+  const supported = "Notification" in window;
+  btn.classList.toggle("active", newAlarm);
+  btn.classList.toggle("disabled", !supported);
+  btn.textContent = newAlarm ? "🔔 Alarm til" : "🔔 Alarm";
+  btn.onclick = async () => {
+    if (!supported) {
+      alert("Denne enhed understøtter ikke notifikationer.");
+      return;
+    }
+    if (newAlarm) {
+      newAlarm = false;
+      renderAlarmToggle();
+      return;
+    }
+    if (Notification.permission === "denied") {
+      alert("Notifikationer er blokeret. Tillad dem i browserens indstillinger for siden.");
+      return;
+    }
+    if (Notification.permission === "default") {
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") return;
+    }
+    newAlarm = true;
+    renderAlarmToggle();
+  };
 }
 
 // Reflects the chosen template's emoji next to the new-task input.
@@ -381,6 +526,27 @@ function renderTemplateGallery() {
       showTemplates = false; // collapse the gallery once a template is chosen
       renderTemplateGallery();
       input.focus();
+    };
+  });
+}
+
+// The "Gentag" chips that set how often a new task recurs.
+function renderRepeatRow() {
+  const row = document.getElementById("repeatRow");
+  if (!row) return;
+  row.innerHTML = `
+    <span class="repeat-row-label">Gentag</span>
+    <div class="repeat-chips">
+      ${REPEAT_OPTIONS.map(
+        (o) =>
+          `<button class="repeat-chip ${newRepeat === o.id ? "active" : ""}" data-repeat="${o.id}">${o.label}</button>`
+      ).join("")}
+    </div>`;
+  row.querySelectorAll("[data-repeat]").forEach((el) => {
+    el.onclick = () => {
+      const val = el.dataset.repeat;
+      newRepeat = val === "null" ? null : val;
+      renderRepeatRow();
     };
   });
 }
@@ -501,9 +667,16 @@ function render() {
   if (dateInput && dateInput.value !== newDue) {
     dateInput.value = newDue;
   }
+  const timeInput = document.getElementById("newTime");
+  if (timeInput && timeInput.value !== newTime) {
+    timeInput.value = newTime;
+  }
   updateDateClearButton();
+  updateTimeClearButton();
   updateEmojiIndicator();
   renderTemplateGallery();
+  renderRepeatRow();
+  renderAlarmToggle();
 
   // Update footer container
   const footerContainer = document.getElementById("footer-container");
@@ -546,28 +719,58 @@ async function addTask() {
   const label = input.value.trim();
   if (!label) return;
   const id = uid();
+  // A recurring task (or a one-off alarm) needs a date to anchor it — default to today.
+  const needsAnchor = newRepeat || (newAlarm && newTime);
+  const due = needsAnchor && !newDue ? ymd(new Date()) : newDue || null;
   await setDoc(doc(tasksCol, id), {
     label,
     emoji: newEmoji || null,
     assignedTo: newAssigned,
     done: false,
-    due: newDue || null,
+    due,
+    time: newTime || null,
+    alarm: !!(newAlarm && newTime),
+    repeat: newRepeat || null,
     ts: Date.now(),
   });
   input.value = "";
   newEmoji = "";
+  newAlarm = false;
+  newRepeat = null;
   updateEmojiIndicator();
+  renderRepeatRow();
+  renderAlarmToggle();
 }
 
 async function toggleDone(id) {
   const t = tasks.find((t) => t.id === id);
   if (!t) return;
+
+  // Recurring task: instead of marking done, roll it forward to the next date.
+  if (t.repeat && !t.done) {
+    await setDoc(doc(tasksCol, id), {
+      label: t.label,
+      emoji: t.emoji || null,
+      assignedTo: t.assignedTo,
+      done: false,
+      due: nextDueDate(t.due, t.repeat),
+      time: t.time || null,
+      alarm: !!t.alarm,
+      repeat: t.repeat,
+      ts: t.ts || Date.now(),
+    });
+    return;
+  }
+
   await setDoc(doc(tasksCol, id), {
     label: t.label,
     emoji: t.emoji || null,
     assignedTo: t.assignedTo,
     done: !t.done,
     due: t.due || null,
+    time: t.time || null,
+    alarm: !!t.alarm,
+    repeat: t.repeat || null,
     ts: t.ts || Date.now(),
   });
 }
@@ -673,6 +876,7 @@ onSnapshot(
     tasks = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
     connected = true;
     updateWithTransition();
+    scheduleReminders();
   },
   (err) => {
     console.error("Firestore sync error:", err);
