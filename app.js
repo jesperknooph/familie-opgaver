@@ -23,7 +23,7 @@ let newAssigned = null;
 let newEmoji = "";
 let newDue = "";
 let showTemplates = false;
-let view = "liste"; // "liste" | "uge"
+let view = "idag"; // "idag" | "liste" | "uge"
 let weekOffset = 0; // 0 = denne uge
 let connected = false;
 
@@ -117,6 +117,63 @@ function listSection(visible) {
           ? `<div class="empty">Ingen opgaver her.</div>`
           : visible.map(taskRow).join("")
       }
+    </section>`;
+}
+
+function todaySection(visible) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = ymd(today);
+
+  const sortOpenFirst = (a, b) =>
+    Number(a.done) - Number(b.done) || (b.ts || 0) - (a.ts || 0);
+
+  const dueToday = visible.filter((t) => t.due === todayStr).sort(sortOpenFirst);
+  const overdue = visible
+    .filter((t) => t.due && t.due < todayStr && !t.done)
+    .sort((a, b) => (a.due < b.due ? -1 : 1));
+  const noDate = visible.filter((t) => !t.due).sort(sortOpenFirst);
+
+  const dayName = DAY_NAMES[(today.getDay() + 6) % 7];
+  const dateLabel = `${dayName} ${today.getDate()}. ${MONTHS[today.getMonth()]}`;
+  const todoCount = overdue.length + dueToday.filter((t) => !t.done).length + noDate.filter((t) => !t.done).length;
+
+  const nothing = overdue.length === 0 && dueToday.length === 0 && noDate.length === 0;
+
+  return `
+    <section class="today">
+      <div class="today-head">
+        <span class="today-day">${dateLabel}</span>
+        <span class="today-count">${
+          todoCount === 0 ? "alt klaret 🎉" : `${todoCount} at gøre`
+        }</span>
+      </div>
+
+      ${
+        filter !== "alle"
+          ? `<div class="filter-note">${filter} · <span class="filter-clear" id="clearFilter">vis alle</span></div>`
+          : ""
+      }
+
+      ${
+        overdue.length
+          ? `<div class="section-label overdue">Forsinket</div>${overdue.map(taskRow).join("")}`
+          : ""
+      }
+
+      ${
+        dueToday.length
+          ? `<div class="section-label">I dag</div>${dueToday.map(taskRow).join("")}`
+          : ""
+      }
+
+      ${
+        noDate.length
+          ? `<div class="section-label">Når du kan</div>${noDate.map(taskRow).join("")}`
+          : ""
+      }
+
+      ${nothing ? `<div class="empty">Ingen opgaver i dag. 🎉</div>` : ""}
     </section>`;
 }
 
@@ -216,6 +273,7 @@ function renderShell() {
     <div class="user-bar" id="userBar"></div>
 
     <div class="view-toggle" id="viewToggle">
+      <button class="view-btn" data-view="idag">I dag</button>
       <button class="view-btn" data-view="liste">Liste</button>
       <button class="view-btn" data-view="uge">Uge</button>
     </div>
@@ -320,6 +378,8 @@ function renderTemplateGallery() {
       const input = document.getElementById("newLabel");
       input.value = tpl.label;
       updateEmojiIndicator();
+      showTemplates = false; // collapse the gallery once a template is chosen
+      renderTemplateGallery();
       input.focus();
     };
   });
@@ -429,6 +489,8 @@ function render() {
   if (listContainer) {
     if (view === "uge") {
       listContainer.innerHTML = weekSection(visible);
+    } else if (view === "idag") {
+      listContainer.innerHTML = todaySection(visible);
     } else {
       listContainer.innerHTML = listSection(listVisible);
     }
