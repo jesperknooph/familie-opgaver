@@ -23,8 +23,9 @@ service cloud.firestore {
 
     // --- tasks ---
     function isValidTask(data) {
-      return data.keys().hasOnly(['label', 'assignedTo', 'done', 'due', 'ts'])
+      return data.keys().hasOnly(['label', 'emoji', 'assignedTo', 'done', 'due', 'ts'])
         && data.label is string && data.label.size() > 0 && data.label.size() <= 500
+        && (!('emoji' in data) || data.emoji == null || (data.emoji is string && data.emoji.size() <= 16))
         && data.assignedTo in memberNames()
         && data.done is bool
         && (data.due == null || (data.due is string && data.due.size() <= 10))

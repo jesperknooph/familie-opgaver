@@ -1,10 +1,11 @@
-const CACHE_NAME = "familie-opgaver-v6";
+const CACHE_NAME = "familie-opgaver-v7";
 const ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
   "./auth.js",
+  "./templates.js",
   "./firebase-config.js",
   "./manifest.json",
   "./favicon.svg?v=2",

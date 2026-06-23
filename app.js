@@ -9,6 +9,7 @@ import {
   orderBy,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { MEMBERS, ensureAuth, signOut, isAdmin, resetPin } from "./auth.js";
+import { TASK_TEMPLATES } from "./templates.js";
 
 const DAY_NAMES = ["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", "Lørdag", "Søndag"];
 const MONTHS = ["jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
@@ -19,7 +20,9 @@ let tasks = [];
 let filter = "alle";
 let currentUser = null;
 let newAssigned = null;
+let newEmoji = "";
 let newDue = "";
+let showTemplates = false;
 let view = "liste"; // "liste" | "uge"
 let weekOffset = 0; // 0 = denne uge
 let connected = false;
@@ -84,11 +87,15 @@ function escapeHtml(str) {
 }
 
 function taskRow(t) {
+  const emojiTile = t.emoji
+    ? `<span class="task-emoji" style="background:${colorFor(t.assignedTo)}1A">${t.emoji}</span>`
+    : "";
   return `
     <div class="task-row ${t.done ? "done" : ""}" style="border-left-color:${colorFor(t.assignedTo)}; view-transition-name: task-${t.id};">
       <button class="check-button" data-toggle="${t.id}">
         ${t.done ? icon("check", colorFor(t.assignedTo)) : icon("circle", "#D6CFE0")}
       </button>
+      ${emojiTile}
       <div class="task-body">
         <span class="task-label ${t.done ? "done" : ""}">${escapeHtml(t.label)}</span>
         <span class="task-assignee" style="color:${colorFor(t.assignedTo)}">${t.assignedTo}</span>
@@ -216,7 +223,12 @@ function renderShell() {
     <section class="avatar-row" id="avatarRow"></section>
 
     <section class="add-card" id="addCard">
-      <input class="input" id="newLabel" placeholder="Ny opgave …" />
+      <div class="label-row">
+        <span class="add-emoji" id="addEmoji"></span>
+        <input class="input" id="newLabel" placeholder="Ny opgave …" />
+      </div>
+      <button class="template-toggle" id="templateToggle"></button>
+      <div class="template-gallery" id="templateGallery"></div>
       <div class="add-meta">
         <span class="date-field-label">Forfald</span>
         <input type="date" class="date-input" id="newDue" />
@@ -241,6 +253,10 @@ function renderShell() {
     newDue = e.target.value;
     updateDateClearButton();
   };
+  document.getElementById("templateToggle").onclick = () => {
+    showTemplates = !showTemplates;
+    renderTemplateGallery();
+  };
 
   document.querySelectorAll("[data-view]").forEach((el) => {
     el.onclick = () => {
@@ -263,6 +279,50 @@ function updateDateClearButton() {
   } else {
     container.innerHTML = "";
   }
+}
+
+// Reflects the chosen template's emoji next to the new-task input.
+function updateEmojiIndicator() {
+  const el = document.getElementById("addEmoji");
+  if (!el) return;
+  el.textContent = newEmoji;
+  el.classList.toggle("show", !!newEmoji);
+}
+
+// The tap-to-add gallery of preset tasks. Picking one fills the form (label +
+// emoji) and keeps the chosen person, so a parent just confirms who and when.
+function renderTemplateGallery() {
+  const toggle = document.getElementById("templateToggle");
+  if (toggle) {
+    toggle.innerHTML = `📋 Skabeloner ${showTemplates ? "▴" : "▾"}`;
+    toggle.classList.toggle("open", showTemplates);
+  }
+  const gallery = document.getElementById("templateGallery");
+  if (!gallery) return;
+  if (!showTemplates) {
+    gallery.innerHTML = "";
+    gallery.classList.remove("open");
+    return;
+  }
+  gallery.classList.add("open");
+  gallery.innerHTML = TASK_TEMPLATES.map(
+    (tpl, i) => `
+      <button class="template-chip" data-template="${i}">
+        <span class="template-emoji">${tpl.emoji}</span>
+        <span class="template-label">${escapeHtml(tpl.label)}</span>
+      </button>`
+  ).join("");
+
+  gallery.querySelectorAll("[data-template]").forEach((el) => {
+    el.onclick = () => {
+      const tpl = TASK_TEMPLATES[Number(el.dataset.template)];
+      newEmoji = tpl.emoji;
+      const input = document.getElementById("newLabel");
+      input.value = tpl.label;
+      updateEmojiIndicator();
+      input.focus();
+    };
+  });
 }
 
 function render() {
@@ -380,6 +440,8 @@ function render() {
     dateInput.value = newDue;
   }
   updateDateClearButton();
+  updateEmojiIndicator();
+  renderTemplateGallery();
 
   // Update footer container
   const footerContainer = document.getElementById("footer-container");
@@ -424,12 +486,15 @@ async function addTask() {
   const id = uid();
   await setDoc(doc(tasksCol, id), {
     label,
+    emoji: newEmoji || null,
     assignedTo: newAssigned,
     done: false,
     due: newDue || null,
     ts: Date.now(),
   });
   input.value = "";
+  newEmoji = "";
+  updateEmojiIndicator();
 }
 
 async function toggleDone(id) {
@@ -437,6 +502,7 @@ async function toggleDone(id) {
   if (!t) return;
   await setDoc(doc(tasksCol, id), {
     label: t.label,
+    emoji: t.emoji || null,
     assignedTo: t.assignedTo,
     done: !t.done,
     due: t.due || null,
