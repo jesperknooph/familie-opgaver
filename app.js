@@ -3,6 +3,7 @@ import {
   collection,
   doc,
   setDoc,
+  updateDoc,
   deleteDoc,
   onSnapshot,
   query,
@@ -142,6 +143,19 @@ function scheduleReminders() {
     if (delay <= 0 || delay > 86_400_000) return; // already passed, or absurdly far
     reminderTimers.set(t.id, setTimeout(() => fireReminder(t), delay));
   });
+}
+
+// A device left open overnight (the kitchen iPad) must roll over at midnight:
+// re-schedule the new day's alarms and re-render so "I dag" shows the right day.
+function scheduleMidnightRefresh() {
+  const now = new Date();
+  const next = new Date(now);
+  next.setHours(24, 0, 5, 0); // 00:00:05 tonight
+  setTimeout(() => {
+    scheduleReminders();
+    updateWithTransition();
+    scheduleMidnightRefresh();
+  }, next.getTime() - now.getTime());
 }
 
 function icon(name, color = "currentColor", size = 19) {
@@ -742,41 +756,57 @@ async function addTask() {
   renderAlarmToggle();
 }
 
+// Only touch the fields we mean to change (updateDoc, not a full setDoc
+// overwrite) so a stale local copy can't revert edits made on another device.
 async function toggleDone(id) {
   const t = tasks.find((t) => t.id === id);
   if (!t) return;
 
   // Recurring task: instead of marking done, roll it forward to the next date.
   if (t.repeat && !t.done) {
-    await setDoc(doc(tasksCol, id), {
-      label: t.label,
-      emoji: t.emoji || null,
-      assignedTo: t.assignedTo,
-      done: false,
-      due: nextDueDate(t.due, t.repeat),
-      time: t.time || null,
-      alarm: !!t.alarm,
-      repeat: t.repeat,
-      ts: t.ts || Date.now(),
-    });
+    await updateDoc(doc(tasksCol, id), { due: nextDueDate(t.due, t.repeat) });
     return;
   }
 
-  await setDoc(doc(tasksCol, id), {
-    label: t.label,
-    emoji: t.emoji || null,
-    assignedTo: t.assignedTo,
-    done: !t.done,
-    due: t.due || null,
-    time: t.time || null,
-    alarm: !!t.alarm,
-    repeat: t.repeat || null,
-    ts: t.ts || Date.now(),
-  });
+  await updateDoc(doc(tasksCol, id), { done: !t.done });
 }
 
 async function removeTask(id) {
+  const t = tasks.find((t) => t.id === id);
   await deleteDoc(doc(tasksCol, id));
+  if (t) showUndo(t);
+}
+
+// A brief "Fortryd" snackbar after a delete, so one stray tap isn't final.
+// Restoring simply rewrites the same document under its old id.
+let undoState = null; // { el, timer }
+
+function dismissUndo() {
+  if (!undoState) return;
+  clearTimeout(undoState.timer);
+  undoState.el.remove();
+  undoState = null;
+}
+
+function showUndo(t) {
+  dismissUndo();
+  const el = document.createElement("div");
+  el.className = "undo-snackbar";
+  el.innerHTML = `
+    <span class="undo-text">Slettede "${escapeHtml(t.label)}"</span>
+    <button class="undo-btn">Fortryd</button>`;
+  document.body.appendChild(el);
+  el.querySelector(".undo-btn").onclick = async () => {
+    const { id, ...data } = t;
+    dismissUndo();
+    try {
+      await setDoc(doc(tasksCol, id), data);
+    } catch (e) {
+      console.error("Undo failed:", e);
+      alert("Kunne ikke gendanne opgaven. Er du online?");
+    }
+  };
+  undoState = { el, timer: setTimeout(dismissUndo, 6000) };
 }
 
 async function clearDone() {
@@ -886,3 +916,4 @@ onSnapshot(
 );
 
 render();
+scheduleMidnightRefresh();

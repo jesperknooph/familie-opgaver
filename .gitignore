@@ -4,6 +4,9 @@
 # Netlify CLI local state
 .netlify/
 
+# Debug logs
+*.log
+
 # Editor cruft
 *.swp
 .vscode/
