@@ -5,6 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Familiens opgaver</title>
 <meta name="theme-color" content="#FDF7ED" />
+<script>
+  // Apply the theme before first paint: saved 🌙/☀️ choice wins, else the
+  // device setting. Kept inline so there's no light/dark flash on load.
+  (function () {
+    var saved = localStorage.getItem("theme");
+    var dark = saved ? saved === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    if (dark) document.documentElement.classList.add("dark");
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = dark ? "#1E1B18" : "#FDF7ED";
+  })();
+</script>
 <link rel="manifest" href="manifest.json" />
 <link rel="icon" href="favicon.svg?v=2" type="image/svg+xml" />
 <link rel="icon" href="favicon-32.png?v=2" sizes="32x32" type="image/png" />

@@ -1,4 +1,4 @@
-const CACHE_NAME = "familie-opgaver-v16";
+const CACHE_NAME = "familie-opgaver-v17";
 const ASSETS = [
   "./",
   "./index.html",

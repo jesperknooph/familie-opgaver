@@ -256,6 +256,19 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   color: var(--text-primary);
   border-color: rgba(28, 25, 23, 0.15);
 }
+.theme-btn {
+  border: 1px solid rgba(28, 25, 23, 0.08);
+  background: var(--card-bg);
+  padding: 5px 10px;
+  border-radius: var(--border-radius-sm);
+  font-size: 14px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.theme-btn:hover {
+  background: rgba(28, 25, 23, 0.02);
+  border-color: rgba(28, 25, 23, 0.15);
+}
 
 /* --- Weekly stars strip (points tally per member) --- */
 .stars-row {
@@ -1417,4 +1430,161 @@ svg.icon {
   ::view-transition-new(*) {
     animation: none !important;
   }
+}
+
+/* --- Dark mode ---
+   Driven by the html.dark class, not a media query, so the in-app 🌙/☀️
+   switch can override the device setting. A head script applies the class
+   before first paint (saved choice in localStorage, else system setting). */
+html.dark {
+  color-scheme: dark; /* native date/time pickers, scrollbars etc. */
+  --bg-app: #1E1B18;
+  --text-primary: #F3EEE6;
+  --text-secondary: #A8A29E;
+  --text-tertiary: #6E6862;
+  --card-bg: #2A2521;
+  --card-border: rgba(255, 255, 255, 0.06);
+  --card-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --card-shadow-md: 0 12px 24px -10px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.25);
+  --card-shadow-lg: 0 20px 40px -15px rgba(0, 0, 0, 0.6), 0 8px 20px -5px rgba(0, 0, 0, 0.3);
+}
+
+html.dark body {
+  background-image:
+    radial-gradient(600px 420px at 85% -10%, rgba(255, 197, 61, 0.07), transparent 70%),
+    radial-gradient(520px 400px at -12% 10%, rgba(56, 189, 248, 0.06), transparent 70%),
+    radial-gradient(540px 440px at 110% 55%, rgba(255, 94, 122, 0.05), transparent 70%),
+    radial-gradient(480px 400px at -8% 90%, rgba(74, 222, 128, 0.05), transparent 70%);
+}
+
+/* Hardcoded "ink on paper" borders flip to soft white */
+html.dark .logout-btn, html.dark .admin-btn, html.dark .theme-btn,
+html.dark .reset-btn, html.dark .btn-ghost, html.dark .week-nav-btn,
+html.dark .clear-button, html.dark .alarm-toggle, html.dark .date-input,
+html.dark .input, html.dark .template-toggle, html.dark .template-chip,
+html.dark .repeat-chip, html.dark .assign-chip, html.dark .key,
+html.dark .login-avatar {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+html.dark .add-trigger, html.dark .empty {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+html.dark .input:focus, html.dark .date-input:focus {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+/* White hover states become a lighter card tone */
+html.dark .task-row:hover, html.dark .template-chip:hover, html.dark .key:hover,
+html.dark .login-avatar:hover, html.dark .view-btn.active {
+  background: #332E29;
+}
+html.dark .task-row:hover, html.dark .template-chip:hover, html.dark .key:hover,
+html.dark .login-avatar:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+html.dark .logout-btn:hover, html.dark .admin-btn:hover,
+html.dark .theme-btn:hover, html.dark .week-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+html.dark .week-title:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+html.dark .sync-wrap {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: transparent;
+}
+html.dark .view-toggle {
+  background: rgba(255, 255, 255, 0.08);
+}
+html.dark .progress-track {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Dark chips: light pill needs dark text (was dark pill + white text) */
+html.dark .repeat-chip.active, html.dark .template-toggle.open {
+  background: var(--text-primary);
+  color: #1C1917;
+}
+html.dark .undo-snackbar {
+  background: #3F3933;
+}
+
+html.dark .task-row.done {
+  background: rgba(255, 255, 255, 0.03);
+}
+html.dark .day-card {
+  background: rgba(255, 255, 255, 0.03);
+}
+html.dark .day-card.is-today {
+  background: var(--card-bg);
+  border-color: rgba(122, 186, 161, 0.3);
+}
+html.dark .day-card.is-today .day-name {
+  color: #7ABAA1;
+}
+html.dark .empty {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* Amber alarm + red error tints, re-mixed for dark */
+html.dark .task-time.has-alarm {
+  background: rgba(245, 158, 11, 0.16);
+  color: #FBBF24;
+}
+html.dark .alarm-toggle.active {
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(245, 158, 11, 0.45);
+  color: #FBBF24;
+}
+html.dark .error-banner, html.dark .login-error {
+  background: rgba(220, 38, 38, 0.16);
+  color: #FCA5A5;
+  border-color: rgba(252, 165, 165, 0.2);
+}
+html.dark .date-clear, html.dark .delete-button:hover {
+  color: #F87171;
+}
+html.dark .delete-button:hover, html.dark .reset-btn:hover {
+  background: rgba(220, 38, 38, 0.16);
+}
+html.dark .clear-button:hover {
+  background: rgba(220, 38, 38, 0.16);
+  color: #FCA5A5;
+  border-color: rgba(252, 165, 165, 0.25);
+}
+html.dark .reset-btn {
+  color: #F87171;
+}
+
+html.dark .modal-wrap {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+/* Login screen */
+html.dark .login-wrap {
+  background:
+    radial-gradient(520px 380px at 85% 0%, rgba(255, 197, 61, 0.08), transparent 70%),
+    radial-gradient(480px 360px at 0% 20%, rgba(56, 189, 248, 0.07), transparent 70%),
+    radial-gradient(500px 400px at 100% 90%, rgba(255, 94, 122, 0.06), transparent 70%),
+    radial-gradient(circle at top left, #221E1A, #15120F);
+}
+html.dark .login-card {
+  background: rgba(42, 37, 33, 0.85);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+html.dark .login-avatar {
+  background: rgba(255, 255, 255, 0.05);
+}
+html.dark .key {
+  background: rgba(255, 255, 255, 0.06);
+}
+html.dark .key:active {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+html.dark .repeat-chips::-webkit-scrollbar-thumb,
+html.dark .assign-row::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
 }

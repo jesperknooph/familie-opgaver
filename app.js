@@ -539,11 +539,15 @@ function render() {
         Logget ind som <strong>${currentUser.name}</strong>
       </span>
       <span class="user-actions">
+        <button class="theme-btn" id="themeBtn" title="Skift mellem lys og mørk">${
+          document.documentElement.classList.contains("dark") ? "☀️" : "🌙"
+        }</button>
         ${isAdmin(currentUser) ? `<button class="admin-btn" id="resetPinBtn">Nulstil PIN</button>` : ""}
         <button class="logout-btn" id="logoutBtn">Log ud</button>
       </span>
     `;
     document.getElementById("logoutBtn").onclick = signOut;
+    document.getElementById("themeBtn").onclick = toggleTheme;
     const resetPinBtn = document.getElementById("resetPinBtn");
     if (resetPinBtn) resetPinBtn.onclick = openResetPanel;
   }
@@ -574,7 +578,7 @@ function render() {
       avatarRow.innerHTML = MEMBERS.map(
         (m) => `
         <button class="avatar ${filter === m.name ? "active" : ""}" data-filter="${m.name}"
-          style="border-color:${m.color}; background:${filter === m.name ? m.color : "#fff"}; view-transition-name: avatar-${m.name};">
+          style="border-color:${m.color}; background:${filter === m.name ? m.color : "var(--card-bg)"}; view-transition-name: avatar-${m.name};">
           <span class="avatar-initial" style="color:${filter === m.name ? "#fff" : m.color}">${m.name[0]}</span>
           <span class="avatar-badge" style="background:${filter === m.name ? "#fff" : m.color}; color:${filter === m.name ? m.color : "#fff"};">${counts[m.name]}</span>
         </button>`
@@ -796,7 +800,7 @@ function openAddSheet() {
     const assignable = admin ? MEMBERS : MEMBERS.filter((m) => m.name === currentUser.name);
     host.querySelector("#addAssignRow").innerHTML = assignable.map(
       (m) => `<button class="assign-chip ${assignees.includes(m.name) ? "active" : ""}" data-assign="${m.name}"
-        style="background:${assignees.includes(m.name) ? m.color : "#F6F3EC"}">${m.name}</button>`
+        style="background:${assignees.includes(m.name) ? m.color : "var(--bg-app)"}">${m.name}</button>`
     ).join("");
     host.querySelector("#addAssignHint").textContent = repeat && admin
       ? assignees.length > 1
@@ -888,6 +892,30 @@ function openAddSheet() {
   drawAlarm();
   drawChips();
 }
+
+// Manual light/dark switch. Until the 🌙/☀️ button is tapped, the app follows
+// the device setting (the head script in index.html applies it pre-paint);
+// after a tap the choice is saved per device and wins over the system.
+function applyTheme(dark) {
+  document.documentElement.classList.toggle("dark", dark);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = dark ? "#1E1B18" : "#FDF7ED";
+}
+
+function toggleTheme() {
+  const dark = !document.documentElement.classList.contains("dark");
+  localStorage.setItem("theme", dark ? "dark" : "light");
+  applyTheme(dark);
+  render(); // refresh the button icon
+}
+
+// Track live system changes only while no manual choice is saved.
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
+  if (!localStorage.getItem("theme")) {
+    applyTheme(e.matches);
+    if (document.getElementById("openAdd")) render();
+  }
+});
 
 // A small confetti burst from the checkbox when a task is completed.
 function confettiBurst(anchor, color) {
@@ -1096,7 +1124,7 @@ function openEditSheet(t) {
     const shown = admin ? MEMBERS : MEMBERS.filter((m) => assignees.includes(m.name));
     host.querySelector("#editAssignRow").innerHTML = shown.map(
       (m) => `<button class="assign-chip ${assignees.includes(m.name) ? "active" : ""}" data-assign="${m.name}"
-        ${admin ? "" : "disabled"} style="background:${assignees.includes(m.name) ? m.color : "#F6F3EC"}">${m.name}</button>`
+        ${admin ? "" : "disabled"} style="background:${assignees.includes(m.name) ? m.color : "var(--bg-app)"}">${m.name}</button>`
     ).join("");
     host.querySelector("#editAssignHint").textContent = repeat
       ? assignees.length > 1
