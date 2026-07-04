@@ -7,9 +7,15 @@ no build step.
 **Live:** https://kh-opgaver.netlify.app/
 
 ## Features
-- Add / complete / delete tasks, filter by family member
-- **Liste** and **Uge** (week) views — the week view groups tasks by day with
-  overdue and no-date sections
+- Add / complete / delete tasks, filter by family member; tap a task to edit
+  everything (label, emoji, date, time, alarm, repeat, assignee, stars)
+- **I dag**, **Liste** and **Uge** (week) views — the week view groups tasks by
+  day with overdue and no-date sections
+- Recurring tasks; a recurring task with several people selected **rotates**
+  assignee each time it's completed ("skiftes")
+- **Points**: tasks can carry a star value; completions are logged and a weekly
+  tally per member shows above the add card (resets Monday)
+- Deleting shows a brief "Fortryd" undo snackbar
 - PIN login per person; "remember me" per device
 - Parent admins (Jesper, Line) can reset anyone's PIN
 - Real-time multi-device sync; works offline and re-syncs when back online
@@ -31,7 +37,11 @@ no build step.
 ## Firebase
 - Project: `familie-opgaver-bf88a` (Spark / free tier)
 - Firestore collections:
-  - `tasks` — `{ label, assignedTo, done, due, ts }`
+  - `tasks` — `{ label, emoji, assignedTo, done, due, time, alarm, repeat,
+    rotation, points, ts }` (`rotation` = list of names a recurring chore
+    alternates between; `points` = star value)
+  - `completions` — one doc per task per day (id `taskId:date`):
+    `{ name, date, label, emoji, points, ts }` — drives the weekly points tally
   - `members` — one doc per person (`{ pinHash }`); PINs are hashed, not plaintext
 - Auth: **Anonymous Authentication** — each device silently gets a token so the
   security rules can require an authenticated request. (This is not per-person

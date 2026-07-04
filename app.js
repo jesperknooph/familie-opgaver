@@ -5,9 +5,11 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  deleteField,
   onSnapshot,
   query,
   orderBy,
+  where,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { MEMBERS, ensureAuth, signOut, isAdmin, resetPin } from "./auth.js";
 import { TASK_TEMPLATES } from "./templates.js";
@@ -16,16 +18,20 @@ const DAY_NAMES = ["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", "Lørdag"
 const MONTHS = ["jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
 
 const tasksCol = collection(db, "tasks");
+const completionsCol = collection(db, "completions");
 
 let tasks = [];
+let completions = []; // this week's completion log (drives the points tally)
+let unsubCompletions = null;
 let filter = "alle";
 let currentUser = null;
-let newAssigned = null;
+let newAssignees = []; // 1 name normally; 2+ (with a repeat) = a rotating chore
 let newEmoji = "";
 let newDue = "";
 let newTime = ""; // "HH:MM" or ""
 let newAlarm = false; // notify at the task's time
 let newRepeat = null; // null | "daily" | "2day" | "weekly" | "2week"
+let newPoints = null; // star value credited on completion
 
 // Pending reminder timers, keyed by task id, so we can cancel/reschedule cleanly.
 const reminderTimers = new Map();
@@ -41,6 +47,7 @@ const REPEAT_OPTIONS = [
 ];
 const REPEAT_DAYS = { daily: 1, "2day": 2, weekly: 7, "2week": 14 };
 const REPEAT_LABELS = { daily: "Dagligt", "2day": "Hver 2. dag", weekly: "Ugentligt", "2week": "Hver 2. uge" };
+const POINTS_OPTIONS = [null, 1, 2, 3, 5];
 let view = "idag"; // "idag" | "liste" | "uge"
 let weekOffset = 0; // 0 = denne uge
 let connected = false;
@@ -92,6 +99,57 @@ function nextDueDate(due, repeat) {
     d = addDays(d, step);
   } while (d < today);
   return ymd(d);
+}
+// Rotating chore: whoever comes after the current assignee in the rotation list.
+function nextInRotation(t) {
+  if (!t.rotation || t.rotation.length < 2) return t.assignedTo;
+  const i = t.rotation.indexOf(t.assignedTo);
+  return t.rotation[(i + 1) % t.rotation.length];
+}
+
+// --- Completion log (drives the weekly points tally) ---
+// One doc per task per day, id `taskId:date`, so re-completing the same day
+// overwrites instead of double-counting, and un-checking can delete it exactly.
+// Failures are non-fatal: if the rules for `completions` aren't published yet,
+// tasks still complete — only the points go unrecorded.
+async function logCompletion(t) {
+  const today = ymd(new Date());
+  try {
+    await setDoc(doc(completionsCol, `${t.id}:${today}`), {
+      name: t.assignedTo,
+      date: today,
+      label: t.label,
+      emoji: t.emoji || null,
+      points: t.points || 0,
+      ts: Date.now(),
+    });
+  } catch (e) {
+    console.warn("Could not log completion (are the new rules published?):", e);
+  }
+}
+async function removeCompletion(t) {
+  const today = ymd(new Date());
+  try {
+    await deleteDoc(doc(completionsCol, `${t.id}:${today}`));
+  } catch (e) {
+    console.warn("Could not remove completion:", e);
+  }
+}
+
+// Live tally of this week's completions. Re-subscribed at midnight so the
+// week window rolls over on Monday.
+function subscribeCompletions() {
+  if (unsubCompletions) unsubCompletions();
+  const weekStart = ymd(startOfWeek(new Date()));
+  const cq = query(completionsCol, where("date", ">=", weekStart));
+  unsubCompletions = onSnapshot(
+    cq,
+    (snap) => {
+      completions = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      render();
+    },
+    (err) => console.warn("Completions sync error (are the new rules published?):", err)
+  );
 }
 function isoWeek(date) {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -153,6 +211,7 @@ function scheduleMidnightRefresh() {
   next.setHours(24, 0, 5, 0); // 00:00:05 tonight
   setTimeout(() => {
     scheduleReminders();
+    subscribeCompletions(); // Monday: the points week window rolls over
     updateWithTransition();
     scheduleMidnightRefresh();
   }, next.getTime() - now.getTime());
@@ -180,18 +239,23 @@ function taskRow(t) {
   const emojiTile = t.emoji
     ? `<span class="task-emoji" style="background:${colorFor(t.assignedTo)}1A">${t.emoji}</span>`
     : "";
+  const rotationBit =
+    t.rotation && t.rotation.length > 1
+      ? `<span class="task-repeat">🔄 ${escapeHtml(nextInRotation(t))} er næste</span>`
+      : "";
   return `
     <div class="task-row ${t.done ? "done" : ""}" style="border-left-color:${colorFor(t.assignedTo)}; view-transition-name: task-${t.id};">
       <button class="check-button" data-toggle="${t.id}">
         ${t.done ? icon("check", colorFor(t.assignedTo)) : icon("circle", "#D6CFE0")}
       </button>
       ${emojiTile}
-      <div class="task-body">
+      <div class="task-body" data-edit="${t.id}" title="Tryk for at rette">
         <span class="task-label ${t.done ? "done" : ""}">${escapeHtml(t.label)}</span>
         <span class="task-assignee" style="color:${colorFor(t.assignedTo)}">${t.assignedTo}${
           t.repeat ? `<span class="task-repeat">🔁 ${REPEAT_LABELS[t.repeat] || ""}</span>` : ""
-        }</span>
+        }${rotationBit}</span>
       </div>
+      ${t.points ? `<span class="task-points">⭐ ${t.points}</span>` : ""}
       ${t.time ? `<span class="task-time ${t.alarm ? "has-alarm" : ""}">${t.alarm ? "🔔" : "🕐"} ${t.time}</span>` : ""}
       <button class="delete-button" data-delete="${t.id}">${icon("trash", "#D6CFE0", 14)}</button>
     </div>`;
@@ -383,6 +447,8 @@ function renderShell() {
 
     <section class="avatar-row" id="avatarRow"></section>
 
+    <section class="stars-row" id="starsRow"></section>
+
     <section class="add-card" id="addCard">
       <div class="label-row">
         <span class="add-emoji" id="addEmoji"></span>
@@ -400,6 +466,8 @@ function renderShell() {
         <button class="alarm-toggle" id="alarmToggle">🔔 Alarm</button>
       </div>
       <div class="repeat-row" id="repeatRow"></div>
+      <div class="repeat-row" id="pointsRow"></div>
+      <div class="assign-hint" id="assignHint"></div>
       <div class="add-row2">
         <div class="assign-row" id="assignRow"></div>
         <button class="add-button" id="addBtn">${icon("plus", "#fff", 16)}</button>
@@ -536,6 +604,8 @@ function renderTemplateGallery() {
       newEmoji = tpl.emoji;
       const input = document.getElementById("newLabel");
       input.value = tpl.label;
+      newPoints = tpl.points || null;
+      renderPointsRow();
       updateEmojiIndicator();
       showTemplates = false; // collapse the gallery once a template is chosen
       renderTemplateGallery();
@@ -560,9 +630,56 @@ function renderRepeatRow() {
     el.onclick = () => {
       const val = el.dataset.repeat;
       newRepeat = val === "null" ? null : val;
-      renderRepeatRow();
+      // Rotation only makes sense for a recurring task — collapse to one person.
+      if (!newRepeat && newAssignees.length > 1) newAssignees = [newAssignees[0]];
+      render();
     };
   });
+}
+
+// The "Stjerner" chips: how many points completing this task is worth.
+function renderPointsRow() {
+  const row = document.getElementById("pointsRow");
+  if (!row) return;
+  row.innerHTML = `
+    <span class="repeat-row-label">Stjerner</span>
+    <div class="repeat-chips">
+      ${POINTS_OPTIONS.map(
+        (p) =>
+          `<button class="repeat-chip ${newPoints === p ? "active" : ""}" data-points="${p}">${p === null ? "Ingen" : `⭐ ${p}`}</button>`
+      ).join("")}
+    </div>`;
+  row.querySelectorAll("[data-points]").forEach((el) => {
+    el.onclick = () => {
+      const val = el.dataset.points;
+      newPoints = val === "null" ? null : Number(val);
+      renderPointsRow();
+    };
+  });
+}
+
+// This week's star tally per family member. Hidden until points are in use.
+function renderStars() {
+  const row = document.getElementById("starsRow");
+  if (!row) return;
+  const inUse = completions.length > 0 || tasks.some((t) => t.points);
+  if (!inUse) {
+    row.innerHTML = "";
+    row.classList.remove("show");
+    return;
+  }
+  const weekPoints = {};
+  MEMBERS.forEach((m) => (weekPoints[m.name] = 0));
+  completions.forEach((c) => {
+    if (c.name in weekPoints) weekPoints[c.name] += c.points || 0;
+  });
+  row.classList.add("show");
+  row.innerHTML =
+    `<span class="stars-label">⭐ Denne uge</span>` +
+    MEMBERS.map(
+      (m) =>
+        `<span class="stars-chip" style="color:${m.color}">${m.name} <strong>${weekPoints[m.name]}</strong></span>`
+    ).join("");
 }
 
 function render() {
@@ -642,21 +759,38 @@ function render() {
     });
   }
 
-  // Update assign-chips
+  // Update assign-chips. Single-select normally; with a repeat set, tapping
+  // several people makes the chore rotate between them.
   const assignRow = document.getElementById("assignRow");
   if (assignRow) {
     assignRow.innerHTML = MEMBERS.map(
-      (m) => `<button class="assign-chip ${newAssigned === m.name ? "active" : ""}" data-assign="${m.name}"
-        style="background:${newAssigned === m.name ? m.color : "#F6F3EC"}">${m.name}</button>`
+      (m) => `<button class="assign-chip ${newAssignees.includes(m.name) ? "active" : ""}" data-assign="${m.name}"
+        style="background:${newAssignees.includes(m.name) ? m.color : "#F6F3EC"}">${m.name}</button>`
     ).join("");
 
     document.querySelectorAll("[data-assign]").forEach((el) => {
       el.onclick = () => {
-        newAssigned = el.dataset.assign;
+        const name = el.dataset.assign;
+        if (!newRepeat) {
+          newAssignees = [name];
+        } else if (newAssignees.includes(name)) {
+          if (newAssignees.length > 1) newAssignees = newAssignees.filter((n) => n !== name);
+        } else {
+          newAssignees = [...newAssignees, name];
+        }
         render();
         document.getElementById("newLabel").focus();
       };
     });
+  }
+
+  const assignHint = document.getElementById("assignHint");
+  if (assignHint) {
+    assignHint.textContent = newRepeat
+      ? newAssignees.length > 1
+        ? `🔄 Skiftes: ${newAssignees.join(" → ")}`
+        : "Tip: vælg flere personer, så skiftes de"
+      : "";
   }
 
   // Update list-container (Liste or Uge)
@@ -690,7 +824,9 @@ function render() {
   updateEmojiIndicator();
   renderTemplateGallery();
   renderRepeatRow();
+  renderPointsRow();
   renderAlarmToggle();
+  renderStars();
 
   // Update footer container
   const footerContainer = document.getElementById("footer-container");
@@ -715,6 +851,12 @@ function render() {
   document.querySelectorAll("[data-delete]").forEach((el) => {
     el.onclick = () => removeTask(el.dataset.delete);
   });
+  document.querySelectorAll("[data-edit]").forEach((el) => {
+    el.onclick = () => {
+      const t = tasks.find((x) => x.id === el.dataset.edit);
+      if (t) openEditSheet(t);
+    };
+  });
   document.querySelectorAll("[data-week]").forEach((el) => {
     el.onclick = () => {
       weekOffset += Number(el.dataset.week);
@@ -736,23 +878,31 @@ async function addTask() {
   // A recurring task (or a one-off alarm) needs a date to anchor it — default to today.
   const needsAnchor = newRepeat || (newAlarm && newTime);
   const due = needsAnchor && !newDue ? ymd(new Date()) : newDue || null;
-  await setDoc(doc(tasksCol, id), {
+  const data = {
     label,
     emoji: newEmoji || null,
-    assignedTo: newAssigned,
+    assignedTo: newAssignees[0],
     done: false,
     due,
     time: newTime || null,
     alarm: !!(newAlarm && newTime),
     repeat: newRepeat || null,
     ts: Date.now(),
-  });
+  };
+  // New optional fields are omitted (not written as null) when unused, so
+  // documents stay valid even under the previous published rules.
+  if (newRepeat && newAssignees.length > 1) data.rotation = [...newAssignees];
+  if (newPoints) data.points = newPoints;
+  await setDoc(doc(tasksCol, id), data);
   input.value = "";
   newEmoji = "";
   newAlarm = false;
   newRepeat = null;
+  newPoints = null;
+  newAssignees = [newAssignees[0]];
   updateEmojiIndicator();
   renderRepeatRow();
+  renderPointsRow();
   renderAlarmToggle();
 }
 
@@ -762,13 +912,19 @@ async function toggleDone(id) {
   const t = tasks.find((t) => t.id === id);
   if (!t) return;
 
-  // Recurring task: instead of marking done, roll it forward to the next date.
+  // Recurring task: instead of marking done, roll it forward to the next date —
+  // and if it rotates, hand it to the next person in the rotation.
   if (t.repeat && !t.done) {
-    await updateDoc(doc(tasksCol, id), { due: nextDueDate(t.due, t.repeat) });
+    const updates = { due: nextDueDate(t.due, t.repeat) };
+    if (t.rotation && t.rotation.length > 1) updates.assignedTo = nextInRotation(t);
+    await updateDoc(doc(tasksCol, id), updates);
+    logCompletion(t); // credited to whoever had it when it was checked off
     return;
   }
 
   await updateDoc(doc(tasksCol, id), { done: !t.done });
+  if (!t.done) logCompletion(t);
+  else removeCompletion(t); // un-checking the same day takes the stars back
 }
 
 async function removeTask(id) {
@@ -813,6 +969,187 @@ async function clearDone() {
   if (!confirm("Fjern alle afkrydsede opgaver?")) return;
   const toRemove = tasks.filter((t) => t.done);
   await Promise.all(toRemove.map((t) => deleteDoc(doc(tasksCol, t.id))));
+}
+
+// Tap a task to edit everything about it: label, emoji, date, time, alarm,
+// repeat, who (incl. rotation) and stars. Saves via updateDoc so only the
+// edited fields are touched; cleared optional fields are removed with
+// deleteField() to stay valid under the previous published rules.
+function openEditSheet(t) {
+  let host = document.getElementById("editSheet");
+  if (!host) {
+    host = document.createElement("div");
+    host.id = "editSheet";
+    document.body.appendChild(host);
+  }
+
+  // Local draft state; text/date inputs are read from the DOM on save.
+  let due = t.due || "";
+  let time = t.time || "";
+  let alarm = !!t.alarm;
+  let repeat = t.repeat || null;
+  let assignees = t.rotation && t.rotation.length > 1 ? [...t.rotation] : [t.assignedTo];
+  let points = t.points || null;
+  let busy = false;
+
+  function close() {
+    host.remove();
+  }
+
+  host.innerHTML = `
+    <div class="modal-wrap">
+      <div class="modal-card edit-card">
+        <div class="modal-head">
+          <h2 class="modal-title">Ret opgave</h2>
+          <button class="modal-close" data-close="1">✕</button>
+        </div>
+
+        <div class="label-row edit-label-row">
+          <input class="input edit-emoji-input" id="editEmoji" maxlength="8" placeholder="🙂" value="${escapeHtml(t.emoji || "")}" />
+          <input class="input" id="editLabel" value="${escapeHtml(t.label)}" />
+        </div>
+
+        <div class="add-meta">
+          <span class="date-field-label">Forfald</span>
+          <input type="date" class="date-input" id="editDue" value="${due}" />
+          <span class="date-field-label">Kl.</span>
+          <input type="time" class="date-input time-input" id="editTime" value="${time}" />
+          <button class="alarm-toggle" id="editAlarm"></button>
+        </div>
+
+        <div class="repeat-row" id="editRepeatRow"></div>
+        <div class="repeat-row" id="editPointsRow"></div>
+        <div class="assign-hint" id="editAssignHint"></div>
+        <div class="assign-row edit-assign-row" id="editAssignRow"></div>
+
+        <div class="sheet-actions">
+          <button class="btn-ghost" data-close="1">Annullér</button>
+          <button class="btn-primary" id="editSave">Gem</button>
+        </div>
+      </div>
+    </div>`;
+
+  const dueInput = host.querySelector("#editDue");
+  const timeInput = host.querySelector("#editTime");
+  dueInput.onchange = () => { due = dueInput.value; };
+  timeInput.onchange = () => { time = timeInput.value; drawAlarm(); };
+
+  function drawAlarm() {
+    const btn = host.querySelector("#editAlarm");
+    const supported = "Notification" in window;
+    btn.classList.toggle("active", alarm);
+    btn.classList.toggle("disabled", !supported);
+    btn.textContent = alarm ? "🔔 Alarm til" : "🔔 Alarm";
+    btn.onclick = async () => {
+      if (!supported) return alert("Denne enhed understøtter ikke notifikationer.");
+      if (alarm) { alarm = false; return drawAlarm(); }
+      if (Notification.permission === "denied")
+        return alert("Notifikationer er blokeret. Tillad dem i browserens indstillinger for siden.");
+      if (Notification.permission === "default") {
+        const perm = await Notification.requestPermission();
+        if (perm !== "granted") return;
+      }
+      alarm = true;
+      drawAlarm();
+    };
+  }
+
+  function drawChips() {
+    host.querySelector("#editRepeatRow").innerHTML = `
+      <span class="repeat-row-label">Gentag</span>
+      <div class="repeat-chips">
+        ${REPEAT_OPTIONS.map(
+          (o) => `<button class="repeat-chip ${repeat === o.id ? "active" : ""}" data-repeat="${o.id}">${o.label}</button>`
+        ).join("")}
+      </div>`;
+    host.querySelector("#editPointsRow").innerHTML = `
+      <span class="repeat-row-label">Stjerner</span>
+      <div class="repeat-chips">
+        ${POINTS_OPTIONS.map(
+          (p) => `<button class="repeat-chip ${points === p ? "active" : ""}" data-points="${p}">${p === null ? "Ingen" : `⭐ ${p}`}</button>`
+        ).join("")}
+      </div>`;
+    host.querySelector("#editAssignRow").innerHTML = MEMBERS.map(
+      (m) => `<button class="assign-chip ${assignees.includes(m.name) ? "active" : ""}" data-assign="${m.name}"
+        style="background:${assignees.includes(m.name) ? m.color : "#F6F3EC"}">${m.name}</button>`
+    ).join("");
+    host.querySelector("#editAssignHint").textContent = repeat
+      ? assignees.length > 1
+        ? `🔄 Skiftes: ${assignees.join(" → ")}`
+        : "Tip: vælg flere personer, så skiftes de"
+      : "";
+
+    host.querySelectorAll("[data-repeat]").forEach((el) => {
+      el.onclick = () => {
+        const val = el.dataset.repeat;
+        repeat = val === "null" ? null : val;
+        if (!repeat && assignees.length > 1) assignees = [assignees[0]];
+        drawChips();
+      };
+    });
+    host.querySelectorAll("[data-points]").forEach((el) => {
+      el.onclick = () => {
+        const val = el.dataset.points;
+        points = val === "null" ? null : Number(val);
+        drawChips();
+      };
+    });
+    host.querySelectorAll("[data-assign]").forEach((el) => {
+      el.onclick = () => {
+        const name = el.dataset.assign;
+        if (!repeat) {
+          assignees = [name];
+        } else if (assignees.includes(name)) {
+          if (assignees.length > 1) assignees = assignees.filter((n) => n !== name);
+        } else {
+          assignees = [...assignees, name];
+        }
+        drawChips();
+      };
+    });
+  }
+
+  host.querySelectorAll("[data-close]").forEach((el) => (el.onclick = close));
+  host.querySelector(".modal-wrap").onclick = (e) => {
+    if (e.target === e.currentTarget) close();
+  };
+
+  host.querySelector("#editSave").onclick = async () => {
+    if (busy) return;
+    const label = host.querySelector("#editLabel").value.trim();
+    if (!label) return alert("Opgaven skal have en tekst.");
+    const emoji = host.querySelector("#editEmoji").value.trim();
+    // Same anchoring rule as addTask: repeats and alarms need a date.
+    const needsAnchor = repeat || (alarm && time);
+    const finalDue = needsAnchor && !due ? ymd(new Date()) : due || null;
+    const rotation = repeat && assignees.length > 1 ? [...assignees] : null;
+    busy = true;
+    const saveBtn = host.querySelector("#editSave");
+    saveBtn.textContent = "…";
+    try {
+      await updateDoc(doc(tasksCol, t.id), {
+        label,
+        emoji: emoji || null,
+        assignedTo: assignees.includes(t.assignedTo) ? t.assignedTo : assignees[0],
+        due: finalDue,
+        time: time || null,
+        alarm: !!(alarm && time),
+        repeat: repeat,
+        rotation: rotation || deleteField(),
+        points: points || deleteField(),
+      });
+      close();
+    } catch (e) {
+      console.error("Saving task failed:", e);
+      busy = false;
+      saveBtn.textContent = "Gem";
+      alert("Kunne ikke gemme ændringerne. Er du online?");
+    }
+  };
+
+  drawAlarm();
+  drawChips();
+  host.querySelector("#editLabel").focus();
 }
 
 // Admin-only: reset another member's PIN. They pick a new one at next login.
@@ -896,7 +1233,7 @@ try {
 
 // Gate the app behind the family login before subscribing to data.
 currentUser = await ensureAuth();
-newAssigned = currentUser.name;
+newAssignees = [currentUser.name];
 
 // Real-time listener — every connected device updates instantly.
 const q = query(tasksCol, orderBy("ts", "desc"));
@@ -916,4 +1253,5 @@ onSnapshot(
 );
 
 render();
+subscribeCompletions();
 scheduleMidnightRefresh();

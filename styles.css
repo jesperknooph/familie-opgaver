@@ -237,6 +237,119 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   border-color: rgba(28, 25, 23, 0.15);
 }
 
+/* --- Weekly stars strip (points tally per member) --- */
+.stars-row {
+  display: none;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding: 10px 16px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--card-shadow-sm);
+  font-size: 13px;
+}
+.stars-row.show {
+  display: flex;
+}
+.stars-label {
+  font-weight: 800;
+  color: var(--text-secondary);
+}
+.stars-chip {
+  font-weight: 600;
+}
+.stars-chip strong {
+  font-weight: 800;
+}
+
+/* Star value chip on a task row */
+.task-points {
+  flex-shrink: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #92400E;
+  background: #FEF3C7;
+  border-radius: 999px;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+/* Hint under the repeat/assign rows ("vælg flere, så skiftes de") */
+.assign-hint {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  margin-bottom: 10px;
+  min-height: 0;
+}
+.assign-hint:empty {
+  display: none;
+}
+
+/* --- Edit sheet (tap a task to open) --- */
+#editSheet {
+  position: fixed;
+  inset: 0;
+  z-index: 1150;
+}
+.edit-card {
+  max-width: 440px;
+}
+.edit-label-row {
+  margin-top: 14px;
+}
+.edit-emoji-input {
+  flex: 0 0 64px; /* beats the .label-row .input { flex: 1 } rule */
+  width: 64px;
+  text-align: center;
+  font-size: 20px;
+  padding: 12px 6px;
+}
+.edit-card .add-meta {
+  margin-top: 2px;
+}
+.edit-card .repeat-row {
+  margin-bottom: 10px;
+}
+.sheet-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+.btn-ghost {
+  border: 1px solid rgba(28, 25, 23, 0.1);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 10px 18px;
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+}
+.btn-primary {
+  border: none;
+  background: var(--text-primary);
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 10px 22px;
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+  box-shadow: var(--card-shadow-sm);
+}
+.btn-primary:hover {
+  background: #000;
+}
+.task-body[data-edit] {
+  cursor: pointer;
+}
+
 /* --- Undo snackbar (after deleting a task) --- */
 .undo-snackbar {
   position: fixed;

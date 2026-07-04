@@ -23,7 +23,7 @@ service cloud.firestore {
 
     // --- tasks ---
     function isValidTask(data) {
-      return data.keys().hasOnly(['label', 'emoji', 'assignedTo', 'done', 'due', 'time', 'alarm', 'repeat', 'ts'])
+      return data.keys().hasOnly(['label', 'emoji', 'assignedTo', 'done', 'due', 'time', 'alarm', 'repeat', 'rotation', 'points', 'ts'])
         && data.label is string && data.label.size() > 0 && data.label.size() <= 500
         && (!('emoji' in data) || data.emoji == null || (data.emoji is string && data.emoji.size() <= 16))
         && data.assignedTo in memberNames()
@@ -32,12 +32,38 @@ service cloud.firestore {
         && (!('time' in data) || data.time == null || (data.time is string && data.time.size() <= 5))
         && (!('alarm' in data) || data.alarm is bool)
         && (!('repeat' in data) || data.repeat == null || data.repeat in ['daily', '2day', 'weekly', '2week'])
+        // rotation: a recurring chore that alternates assignee; the current
+        // assignee must always be one of the rotating members
+        && (!('rotation' in data) || data.rotation == null
+            || (data.rotation is list && data.rotation.size() >= 2 && data.rotation.size() <= 10
+                && data.rotation.hasOnly(memberNames()) && data.assignedTo in data.rotation))
+        && (!('points' in data) || data.points == null
+            || (data.points is int && data.points >= 0 && data.points <= 100))
         && data.ts is number;
     }
 
     match /tasks/{taskId} {
       allow read: if request.auth != null;
       allow create, update: if request.auth != null && isValidTask(request.resource.data);
+      allow delete: if request.auth != null;
+    }
+
+    // --- completions (one doc per task per day, id `taskId:date`) ---
+    // The append-only-ish log behind the weekly points tally. Delete is allowed
+    // so un-checking a task the same day can take its stars back.
+    function isValidCompletion(data) {
+      return data.keys().hasOnly(['name', 'date', 'label', 'emoji', 'points', 'ts'])
+        && data.name in memberNames()
+        && data.date is string && data.date.size() == 10
+        && data.label is string && data.label.size() > 0 && data.label.size() <= 500
+        && (!('emoji' in data) || data.emoji == null || (data.emoji is string && data.emoji.size() <= 16))
+        && data.points is int && data.points >= 0 && data.points <= 100
+        && data.ts is number;
+    }
+
+    match /completions/{completionId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null && isValidCompletion(request.resource.data);
       allow delete: if request.auth != null;
     }
 
