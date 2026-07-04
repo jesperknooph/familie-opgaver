@@ -271,7 +271,7 @@ function listSection(visible) {
       }
       ${
         visible.length === 0
-          ? `<div class="empty">Ingen opgaver her.</div>`
+          ? `<div class="empty"><span class="empty-emoji">🌈</span>Ingen opgaver her.</div>`
           : visible.map(taskRow).join("")
       }
     </section>`;
@@ -307,6 +307,11 @@ function todaySection(visible) {
 
   const nothing = overdue.length === 0 && dueToday.length === 0 && noDate.length === 0;
 
+  // Progress bar: how many of today's tasks are done (overdue counts as not done).
+  const totalCount = overdue.length + dueToday.length + noDate.length;
+  const doneCount = totalCount - todoCount;
+  const pct = totalCount ? Math.round((doneCount / totalCount) * 100) : 0;
+
   return `
     <section class="today">
       <div class="today-head">
@@ -315,6 +320,15 @@ function todaySection(visible) {
           todoCount === 0 ? "alt klaret 🎉" : `${todoCount} at gøre`
         }</span>
       </div>
+
+      ${
+        totalCount
+          ? `<div class="today-progress ${pct === 100 ? "complete" : ""}">
+              <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+              <span class="progress-count">${pct === 100 ? "🏆" : "⭐"} ${doneCount}/${totalCount}</span>
+            </div>`
+          : ""
+      }
 
       ${
         filter !== "alle"
@@ -340,7 +354,7 @@ function todaySection(visible) {
           : ""
       }
 
-      ${nothing ? `<div class="empty">Ingen opgaver i dag. 🎉</div>` : ""}
+      ${nothing ? `<div class="empty"><span class="empty-emoji">🎈</span>Ingen opgaver i dag – fri leg!</div>` : ""}
     </section>`;
 }
 
@@ -440,9 +454,9 @@ function renderShell() {
     <div class="user-bar" id="userBar"></div>
 
     <div class="view-toggle" id="viewToggle">
-      <button class="view-btn" data-view="idag">I dag</button>
-      <button class="view-btn" data-view="liste">Liste</button>
-      <button class="view-btn" data-view="uge">Uge</button>
+      <button class="view-btn" data-view="idag">☀️ I dag</button>
+      <button class="view-btn" data-view="liste">📋 Liste</button>
+      <button class="view-btn" data-view="uge">📅 Uge</button>
     </div>
 
     <section class="avatar-row" id="avatarRow"></section>
@@ -846,7 +860,11 @@ function render() {
   if (clearFilterEl) clearFilterEl.onclick = () => { filter = "alle"; updateWithTransition(); };
 
   document.querySelectorAll("[data-toggle]").forEach((el) => {
-    el.onclick = () => toggleDone(el.dataset.toggle);
+    el.onclick = () => {
+      const t = tasks.find((x) => x.id === el.dataset.toggle);
+      if (t && !t.done) confettiBurst(el, colorFor(t.assignedTo));
+      toggleDone(el.dataset.toggle);
+    };
   });
   document.querySelectorAll("[data-delete]").forEach((el) => {
     el.onclick = () => removeTask(el.dataset.delete);
@@ -904,6 +922,39 @@ async function addTask() {
   renderRepeatRow();
   renderPointsRow();
   renderAlarmToggle();
+}
+
+// A small confetti burst from the checkbox when a task is completed.
+function confettiBurst(anchor, color) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const rect = anchor.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  const colors = [color, "#FFC53D", "#FF5E7A", "#38BDF8", "#4ADE80", "#A78BFA"];
+  for (let i = 0; i < 22; i++) {
+    const bit = document.createElement("span");
+    bit.className = "confetti-bit";
+    const size = 5 + Math.random() * 6;
+    const h = Math.random() > 0.5 ? size : size * 0.4;
+    bit.style.cssText = `left:${cx}px; top:${cy}px; width:${size}px; height:${h}px; background:${colors[i % colors.length]};`;
+    document.body.appendChild(bit);
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 40 + Math.random() * 80;
+    const dx = Math.cos(angle) * dist;
+    const dy = Math.sin(angle) * dist - 60;
+    bit
+      .animate(
+        [
+          { transform: "translate(0, 0) rotate(0deg) scale(1)", opacity: 1 },
+          {
+            transform: `translate(${dx}px, ${dy + 120}px) rotate(${Math.random() * 720 - 360}deg) scale(0.5)`,
+            opacity: 0,
+          },
+        ],
+        { duration: 700 + Math.random() * 500, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "forwards" }
+      )
+      .onfinish = () => bit.remove();
+  }
 }
 
 // Only touch the fields we mean to change (updateDoc, not a full setDoc

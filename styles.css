@@ -1,23 +1,28 @@
 /* --- Design System & Custom Properties --- */
 :root {
-  --bg-app: #FAF9F6; /* Premium warm paper cream background */
+  --bg-app: #FDF7ED; /* Sunny warm cream background */
   --text-primary: #1C1917; /* Dark slate charcoal */
   --text-secondary: #78716C; /* Stone grey */
   --text-tertiary: #A8A29E; /* Stone muted grey */
-  
+
   --card-bg: #FFFFFF;
   --card-border: rgba(28, 25, 23, 0.05);
   --card-shadow-sm: 0 2px 8px rgba(28, 25, 23, 0.02), 0 1px 2px rgba(28, 25, 23, 0.02);
   --card-shadow-md: 0 12px 24px -10px rgba(28, 25, 23, 0.06), 0 4px 12px rgba(28, 25, 23, 0.02);
   --card-shadow-lg: 0 20px 40px -15px rgba(28, 25, 23, 0.1), 0 8px 20px -5px rgba(28, 25, 23, 0.03);
-  
-  --border-radius-sm: 8px;
-  --border-radius-md: 14px;
-  --border-radius-lg: 20px;
-  --border-radius-xl: 26px;
-  
+
+  --accent: #FF7A59;
+  --accent-grad: linear-gradient(135deg, #FFB03A 0%, #FF5E7A 100%);
+  --gold-grad: linear-gradient(135deg, #FFE08A 0%, #FFC53D 100%);
+
+  --border-radius-sm: 10px;
+  --border-radius-md: 16px;
+  --border-radius-lg: 22px;
+  --border-radius-xl: 28px;
+
   --transition-smooth: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   --transition-click: transform 0.1s cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-spring: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 * { 
@@ -35,6 +40,12 @@ html, body {
 
 body {
   min-height: 100vh;
+  background-image:
+    radial-gradient(600px 420px at 85% -10%, rgba(255, 197, 61, 0.20), transparent 70%),
+    radial-gradient(520px 400px at -12% 10%, rgba(56, 189, 248, 0.13), transparent 70%),
+    radial-gradient(540px 440px at 110% 55%, rgba(255, 94, 122, 0.09), transparent 70%),
+    radial-gradient(480px 400px at -8% 90%, rgba(74, 222, 128, 0.10), transparent 70%);
+  background-attachment: fixed;
 }
 
 #app {
@@ -55,7 +66,7 @@ button, .avatar, .assign-chip, .key {
   transition: var(--transition-smooth);
 }
 button:active, .avatar:active, .assign-chip:active, .key:active {
-  transform: scale(0.96);
+  transform: scale(0.92);
 }
 
 /* --- Header Section --- */
@@ -132,43 +143,52 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
 }
 .avatar {
   position: relative;
-  width: 56px; 
-  height: 56px;
+  width: 62px;
+  height: 62px;
   border-radius: 50%;
-  border: 2px solid;
-  display: flex; 
-  align-items: center; 
+  border: 2.5px solid;
+  display: flex;
+  align-items: center;
   justify-content: center;
   cursor: pointer;
   background: var(--card-bg);
   box-shadow: var(--card-shadow-sm);
+  transition: var(--transition-spring);
 }
 .avatar:hover {
-  transform: translateY(-2px);
+  transform: translateY(-3px);
   box-shadow: var(--card-shadow-md);
 }
-.avatar.active { 
-  color: #fff; 
-  transform: scale(1.05);
+.avatar.active {
+  color: #fff;
+  transform: scale(1.1);
+  box-shadow: var(--card-shadow-md);
+  animation: avatarWiggle 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.avatar-initial { 
-  font-size: 20px; 
-  font-weight: 700; 
-  font-family: 'Outfit', sans-serif; 
+@keyframes avatarWiggle {
+  0% { transform: scale(1) rotate(0deg); }
+  30% { transform: scale(1.15) rotate(-6deg); }
+  60% { transform: scale(1.12) rotate(5deg); }
+  100% { transform: scale(1.1) rotate(0deg); }
+}
+.avatar-initial {
+  font-size: 23px;
+  font-weight: 800;
+  font-family: 'Outfit', sans-serif;
 }
 .avatar-badge {
-  position: absolute; 
-  bottom: -4px; 
+  position: absolute;
+  bottom: -4px;
   right: -4px;
-  min-width: 20px; 
-  height: 20px; 
+  min-width: 22px;
+  height: 22px;
   border-radius: 50%;
-  font-size: 11px; 
+  font-size: 12px;
   font-weight: 800;
-  display: flex; 
-  align-items: center; 
+  display: flex;
+  align-items: center;
   justify-content: center;
-  padding: 0 4px; 
+  padding: 0 4px;
   border: 2.5px solid var(--bg-app);
 }
 
@@ -269,12 +289,13 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
 .task-points {
   flex-shrink: 0;
   font-size: 12.5px;
-  font-weight: 700;
-  color: #92400E;
-  background: #FEF3C7;
+  font-weight: 800;
+  color: #7C4A03;
+  background: var(--gold-grad);
   border-radius: 999px;
-  padding: 4px 10px;
+  padding: 5px 11px;
   white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(255, 176, 58, 0.35);
 }
 
 /* Hint under the repeat/assign rows ("vælg flere, så skiftes de") */
@@ -333,18 +354,19 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
 }
 .btn-primary {
   border: none;
-  background: var(--text-primary);
+  background: var(--accent-grad);
   color: #fff;
   font-family: inherit;
   font-size: 14px;
   font-weight: 700;
   padding: 10px 22px;
-  border-radius: var(--border-radius-md);
+  border-radius: 999px;
   cursor: pointer;
-  box-shadow: var(--card-shadow-sm);
+  box-shadow: 0 3px 10px rgba(255, 94, 122, 0.3);
 }
 .btn-primary:hover {
-  background: #000;
+  box-shadow: 0 5px 14px rgba(255, 94, 122, 0.4);
+  transform: translateY(-1px);
 }
 .task-body[data-edit] {
   cursor: pointer;
@@ -494,13 +516,17 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   inset: 0; 
   z-index: 1000; 
 }
-.login-wrap { 
-  min-height: 100vh; 
-  background: radial-gradient(circle at top left, #FAF9F6, #EAE6DF); 
-  display: flex; 
-  align-items: center; 
-  justify-content: center; 
-  padding: 24px; 
+.login-wrap {
+  min-height: 100vh;
+  background:
+    radial-gradient(520px 380px at 85% 0%, rgba(255, 197, 61, 0.25), transparent 70%),
+    radial-gradient(480px 360px at 0% 20%, rgba(56, 189, 248, 0.18), transparent 70%),
+    radial-gradient(500px 400px at 100% 90%, rgba(255, 94, 122, 0.14), transparent 70%),
+    radial-gradient(circle at top left, #FDF7ED, #F4E9DA);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
 }
 .login-card { 
   width: 100%; 
@@ -628,16 +654,16 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   max-width: 270px; 
   margin: 0 auto; 
 }
-.key { 
-  border: 1px solid rgba(28, 25, 23, 0.08); 
-  background: rgba(255, 255, 255, 0.6); 
-  border-radius: var(--border-radius-md); 
-  font-size: 24px; 
-  font-weight: 500; 
-  color: var(--text-primary); 
-  padding: 16px 0; 
-  cursor: pointer; 
-  font-family: inherit; 
+.key {
+  border: 1px solid rgba(28, 25, 23, 0.08);
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: var(--border-radius-lg);
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--text-primary);
+  padding: 17px 0;
+  cursor: pointer;
+  font-family: inherit;
   box-shadow: var(--card-shadow-sm);
 }
 .key:hover {
@@ -686,29 +712,29 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
 }
 
 /* --- View Toggle (Pill Selector) --- */
-.view-toggle { 
-  display: inline-flex; 
-  background: rgba(28, 25, 23, 0.06); 
-  border-radius: var(--border-radius-md); 
-  padding: 4px; 
-  gap: 2px; 
-  margin-bottom: 24px; 
+.view-toggle {
+  display: inline-flex;
+  background: rgba(28, 25, 23, 0.06);
+  border-radius: 999px;
+  padding: 5px;
+  gap: 2px;
+  margin-bottom: 24px;
   align-self: flex-start;
 }
-.view-btn { 
-  border: none; 
-  background: transparent; 
-  padding: 8px 22px; 
-  border-radius: var(--border-radius-sm); 
-  font-size: 13.5px; 
-  font-weight: 700; 
-  color: var(--text-secondary); 
-  cursor: pointer; 
+.view-btn {
+  border: none;
+  background: transparent;
+  padding: 9px 20px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  cursor: pointer;
 }
-.view-btn.active { 
-  background: var(--card-bg); 
-  color: var(--text-primary); 
-  box-shadow: var(--card-shadow-sm); 
+.view-btn.active {
+  background: var(--card-bg);
+  color: var(--text-primary);
+  box-shadow: var(--card-shadow-sm);
 }
 
 /* --- Add Task Card --- */
@@ -790,10 +816,14 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   cursor: pointer;
   text-align: center;
 }
+.template-chip {
+  transition: var(--transition-spring);
+}
 .template-chip:hover {
   background: #fff;
   border-color: rgba(28, 25, 23, 0.12);
-  box-shadow: var(--card-shadow-sm);
+  box-shadow: var(--card-shadow-md);
+  transform: translateY(-3px) scale(1.04);
 }
 .template-emoji {
   font-size: 30px;
@@ -811,10 +841,10 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 42px;
-  height: 42px;
+  width: 48px;
+  height: 48px;
   flex-shrink: 0;
-  font-size: 24px;
+  font-size: 28px;
   line-height: 1;
   border-radius: var(--border-radius-md);
 }
@@ -978,23 +1008,24 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   border-color: transparent;
 }
 .add-button {
-  border: none; 
-  background: var(--text-primary); 
+  border: none;
+  background: var(--accent-grad);
   color: #fff;
-  width: 40px; 
-  height: 40px; 
-  border-radius: var(--border-radius-md);
-  display: flex; 
-  align-items: center; 
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
   justify-content: center;
-  cursor: pointer; 
-  flex-shrink: 0; 
+  cursor: pointer;
+  flex-shrink: 0;
   font-size: 20px;
-  box-shadow: var(--card-shadow-sm);
+  box-shadow: 0 4px 12px rgba(255, 94, 122, 0.35);
+  transition: var(--transition-spring);
 }
 .add-button:hover {
-  background: #000;
-  box-shadow: var(--card-shadow-md);
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 6px 16px rgba(255, 94, 122, 0.45);
 }
 
 /* --- Task List & Items --- */
@@ -1014,14 +1045,26 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   cursor: pointer; 
   color: var(--text-primary);
 }
-.empty { 
-  font-size: 14px; 
-  color: var(--text-secondary); 
-  background: rgba(255, 255, 255, 0.5); 
-  border-radius: var(--border-radius-lg); 
-  padding: 24px; 
-  text-align: center; 
-  border: 1px dashed rgba(28, 25, 23, 0.1);
+.empty {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: var(--border-radius-lg);
+  padding: 32px 24px;
+  text-align: center;
+  border: 2px dashed rgba(28, 25, 23, 0.08);
+}
+.empty-emoji {
+  display: block;
+  font-size: 44px;
+  line-height: 1;
+  margin-bottom: 10px;
+  animation: emptyFloat 2.8s ease-in-out infinite;
+}
+@keyframes emptyFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
 }
 
 .task-row {
@@ -1049,24 +1092,27 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   background: rgba(255, 255, 255, 0.45);
 }
 
-.check-button { 
-  border: none; 
-  background: transparent; 
-  padding: 0; 
-  display: flex; 
-  cursor: pointer; 
-  flex-shrink: 0; 
+.check-button {
+  border: none;
+  background: transparent;
+  padding: 4px;
+  margin: -4px;
+  display: flex;
+  cursor: pointer;
+  flex-shrink: 0;
 }
 .check-button svg {
+  width: 26px;
+  height: 26px;
   transition: var(--transition-smooth);
 }
 .task-row.done .check-button svg {
-  animation: checkPop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  animation: checkPop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 @keyframes checkPop {
-  0% { transform: scale(0.85); }
-  50% { transform: scale(1.2); }
-  100% { transform: scale(1); }
+  0% { transform: scale(0.6) rotate(-12deg); }
+  55% { transform: scale(1.3) rotate(6deg); }
+  100% { transform: scale(1) rotate(0deg); }
 }
 
 .task-body { 
@@ -1162,6 +1208,46 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
 }
 .today .task-row {
   margin-bottom: 10px;
+}
+
+/* --- Today progress bar --- */
+.today-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.progress-track {
+  flex: 1;
+  height: 16px;
+  background: rgba(28, 25, 23, 0.07);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent-grad);
+  transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.today-progress.complete .progress-fill {
+  background: var(--gold-grad);
+}
+.progress-count {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* --- Confetti burst on task completion --- */
+.confetti-bit {
+  position: fixed;
+  z-index: 2000;
+  pointer-events: none;
+  border-radius: 2px;
 }
 
 /* --- Week / Calendar View --- */
