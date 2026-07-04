@@ -738,7 +738,6 @@ function openAddSheet() {
         drawChips();
         showTpl = false; // collapse the gallery once a template is chosen
         drawTemplates();
-        host.querySelector("#addLabel").focus();
       };
     });
   }
@@ -866,10 +865,11 @@ function openAddSheet() {
     if (e.key === "Enter") save();
   };
 
+  // No autofocus on the text field: on mobile that pops the keyboard and hides
+  // the rest of the form. Let the user pick person/time first, then tap to type.
   drawTemplates();
   drawAlarm();
   drawChips();
-  host.querySelector("#addLabel").focus();
 }
 
 // A small confetti burst from the checkbox when a task is completed.
@@ -1146,9 +1146,9 @@ function openEditSheet(t) {
     }
   };
 
+  // No autofocus, same as the add sheet — don't pop the mobile keyboard.
   drawAlarm();
   drawChips();
-  host.querySelector("#editLabel").focus();
 }
 
 // Admin-only: reset another member's PIN. They pick a new one at next login.
