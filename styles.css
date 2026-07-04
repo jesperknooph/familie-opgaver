@@ -1008,9 +1008,12 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   background: var(--bg-app); 
   color: var(--text-secondary);
 }
-.assign-chip.active { 
-  color: #fff; 
+.assign-chip.active {
+  color: #fff;
   border-color: transparent;
+}
+.assign-chip:disabled {
+  cursor: default;
 }
 /* --- Task List & Items --- */
 .list { 

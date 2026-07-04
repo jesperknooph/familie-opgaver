@@ -186,6 +186,8 @@ function scheduleReminders() {
   const todayStr = ymd(now);
   tasks.forEach((t) => {
     if (!t.alarm || t.done || !t.time || t.due !== todayStr) return;
+    // Kids' devices only ring for their own tasks.
+    if (currentUser && !isAdmin(currentUser) && t.assignedTo !== currentUser.name) return;
     const [h, m] = t.time.split(":").map(Number);
     const fireAt = new Date();
     fireAt.setHours(h, m, 0, 0);
@@ -514,9 +516,14 @@ function render() {
     `;
   }
 
+  // Kids (non-admins) only see their own tasks; parents see the whole family's.
+  const myTasks = isAdmin(currentUser)
+    ? tasks
+    : tasks.filter((t) => t.assignedTo === currentUser.name);
+
   // Update counts
-  const openCount = tasks.filter((t) => !t.done).length;
-  const doneCount = tasks.length - openCount;
+  const openCount = myTasks.filter((t) => !t.done).length;
+  const doneCount = myTasks.length - openCount;
   const countsElement = document.getElementById("taskCounts");
   if (countsElement) {
     countsElement.textContent = 
@@ -550,34 +557,41 @@ function render() {
     }
   });
 
-  // Update avatar-row counts & filter status
-  const counts = MEMBERS.reduce((acc, m) => {
-    acc[m.name] = tasks.filter((t) => t.assignedTo === m.name && !t.done).length;
-    return acc;
-  }, {});
-
+  // Update avatar-row counts & filter status. Kids have no filter row — their
+  // list is always just their own tasks.
   const avatarRow = document.getElementById("avatarRow");
   if (avatarRow) {
-    avatarRow.innerHTML = MEMBERS.map(
-      (m) => `
-      <button class="avatar ${filter === m.name ? "active" : ""}" data-filter="${m.name}"
-        style="border-color:${m.color}; background:${filter === m.name ? m.color : "#fff"}; view-transition-name: avatar-${m.name};">
-        <span class="avatar-initial" style="color:${filter === m.name ? "#fff" : m.color}">${m.name[0]}</span>
-        <span class="avatar-badge" style="background:${filter === m.name ? "#fff" : m.color}; color:${filter === m.name ? m.color : "#fff"};">${counts[m.name]}</span>
-      </button>`
-    ).join("");
+    if (!isAdmin(currentUser)) {
+      filter = "alle";
+      avatarRow.innerHTML = "";
+      avatarRow.style.display = "none";
+    } else {
+      avatarRow.style.display = "";
+      const counts = MEMBERS.reduce((acc, m) => {
+        acc[m.name] = tasks.filter((t) => t.assignedTo === m.name && !t.done).length;
+        return acc;
+      }, {});
+      avatarRow.innerHTML = MEMBERS.map(
+        (m) => `
+        <button class="avatar ${filter === m.name ? "active" : ""}" data-filter="${m.name}"
+          style="border-color:${m.color}; background:${filter === m.name ? m.color : "#fff"}; view-transition-name: avatar-${m.name};">
+          <span class="avatar-initial" style="color:${filter === m.name ? "#fff" : m.color}">${m.name[0]}</span>
+          <span class="avatar-badge" style="background:${filter === m.name ? "#fff" : m.color}; color:${filter === m.name ? m.color : "#fff"};">${counts[m.name]}</span>
+        </button>`
+      ).join("");
 
-    document.querySelectorAll("[data-filter]").forEach((el) => {
-      el.onclick = () => {
-        const name = el.dataset.filter;
-        filter = filter === name ? "alle" : name;
-        updateWithTransition();
-      };
-    });
+      document.querySelectorAll("[data-filter]").forEach((el) => {
+        el.onclick = () => {
+          const name = el.dataset.filter;
+          filter = filter === name ? "alle" : name;
+          updateWithTransition();
+        };
+      });
+    }
   }
 
   // Update list-container (Liste or Uge)
-  const visible = tasks.filter((t) => (filter === "alle" ? true : t.assignedTo === filter));
+  const visible = myTasks.filter((t) => (filter === "alle" ? true : t.assignedTo === filter));
   const listVisible = visible
     .slice()
     .sort((a, b) => Number(a.done) - Number(b.done) || (b.ts || 0) - (a.ts || 0));
@@ -777,11 +791,14 @@ function openAddSheet() {
           (p) => `<button class="repeat-chip ${points === p ? "active" : ""}" data-points="${p}">${p === null ? "Ingen" : `⭐ ${p}`}</button>`
         ).join("")}
       </div>`;
-    host.querySelector("#addAssignRow").innerHTML = MEMBERS.map(
+    // Kids can only give tasks to themselves — they just get their own chip.
+    const admin = isAdmin(currentUser);
+    const assignable = admin ? MEMBERS : MEMBERS.filter((m) => m.name === currentUser.name);
+    host.querySelector("#addAssignRow").innerHTML = assignable.map(
       (m) => `<button class="assign-chip ${assignees.includes(m.name) ? "active" : ""}" data-assign="${m.name}"
         style="background:${assignees.includes(m.name) ? m.color : "#F6F3EC"}">${m.name}</button>`
     ).join("");
-    host.querySelector("#addAssignHint").textContent = repeat
+    host.querySelector("#addAssignHint").textContent = repeat && admin
       ? assignees.length > 1
         ? `🔄 Skiftes: ${assignees.join(" → ")}`
         : "Tip: vælg flere personer, så skiftes de"
@@ -965,8 +982,13 @@ function showUndo(t) {
 }
 
 async function clearDone() {
-  if (!confirm("Fjern alle afkrydsede opgaver?")) return;
-  const toRemove = tasks.filter((t) => t.done);
+  // Kids can only clear their own completed tasks; parents clear everyone's.
+  const admin = isAdmin(currentUser);
+  const toRemove = tasks.filter(
+    (t) => t.done && (admin || t.assignedTo === currentUser.name)
+  );
+  if (toRemove.length === 0) return;
+  if (!confirm(admin ? "Fjern alle afkrydsede opgaver?" : "Fjern dine afkrydsede opgaver?")) return;
   await Promise.all(toRemove.map((t) => deleteDoc(doc(tasksCol, t.id))));
 }
 
@@ -1068,21 +1090,30 @@ function openEditSheet(t) {
           (p) => `<button class="repeat-chip ${points === p ? "active" : ""}" data-points="${p}">${p === null ? "Ingen" : `⭐ ${p}`}</button>`
         ).join("")}
       </div>`;
-    host.querySelector("#editAssignRow").innerHTML = MEMBERS.map(
+    // Kids can't hand a task to someone else: the current assignees are shown
+    // locked, so a shared rotation stays intact when a kid edits other fields.
+    const admin = isAdmin(currentUser);
+    const shown = admin ? MEMBERS : MEMBERS.filter((m) => assignees.includes(m.name));
+    host.querySelector("#editAssignRow").innerHTML = shown.map(
       (m) => `<button class="assign-chip ${assignees.includes(m.name) ? "active" : ""}" data-assign="${m.name}"
-        style="background:${assignees.includes(m.name) ? m.color : "#F6F3EC"}">${m.name}</button>`
+        ${admin ? "" : "disabled"} style="background:${assignees.includes(m.name) ? m.color : "#F6F3EC"}">${m.name}</button>`
     ).join("");
     host.querySelector("#editAssignHint").textContent = repeat
       ? assignees.length > 1
         ? `🔄 Skiftes: ${assignees.join(" → ")}`
-        : "Tip: vælg flere personer, så skiftes de"
+        : admin
+          ? "Tip: vælg flere personer, så skiftes de"
+          : ""
       : "";
 
     host.querySelectorAll("[data-repeat]").forEach((el) => {
       el.onclick = () => {
         const val = el.dataset.repeat;
         repeat = val === "null" ? null : val;
-        if (!repeat && assignees.length > 1) assignees = [assignees[0]];
+        // Collapsing a rotation: a kid keeps the task themselves, never hands
+        // it to whoever happens to be first in the rotation list.
+        if (!repeat && assignees.length > 1)
+          assignees = [admin ? assignees[0] : currentUser.name];
         drawChips();
       };
     });
@@ -1093,19 +1124,21 @@ function openEditSheet(t) {
         drawChips();
       };
     });
-    host.querySelectorAll("[data-assign]").forEach((el) => {
-      el.onclick = () => {
-        const name = el.dataset.assign;
-        if (!repeat) {
-          assignees = [name];
-        } else if (assignees.includes(name)) {
-          if (assignees.length > 1) assignees = assignees.filter((n) => n !== name);
-        } else {
-          assignees = [...assignees, name];
-        }
-        drawChips();
-      };
-    });
+    if (admin) {
+      host.querySelectorAll("[data-assign]").forEach((el) => {
+        el.onclick = () => {
+          const name = el.dataset.assign;
+          if (!repeat) {
+            assignees = [name];
+          } else if (assignees.includes(name)) {
+            if (assignees.length > 1) assignees = assignees.filter((n) => n !== name);
+          } else {
+            assignees = [...assignees, name];
+          }
+          drawChips();
+        };
+      });
+    }
   }
 
   host.querySelectorAll("[data-close]").forEach((el) => (el.onclick = close));
