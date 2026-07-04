@@ -310,8 +310,9 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   display: none;
 }
 
-/* --- Edit sheet (tap a task to open) --- */
-#editSheet {
+/* --- Add/edit sheets (pop-out task forms) --- */
+#editSheet,
+#addSheet {
   position: fixed;
   inset: 0;
   z-index: 1150;
@@ -433,6 +434,8 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   border-radius: var(--border-radius-xl);
   padding: 24px;
   box-shadow: var(--card-shadow-lg);
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
 }
 .modal-head {
   display: flex;
@@ -737,22 +740,45 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   box-shadow: var(--card-shadow-sm);
 }
 
-/* --- Add Task Card --- */
-.add-card { 
-  background: var(--card-bg); 
-  border-radius: var(--border-radius-lg); 
-  padding: 18px; 
-  margin-bottom: 24px; 
-  border: 1px solid var(--card-border);
-  box-shadow: var(--card-shadow-md);
-  transition: var(--transition-smooth);
+/* --- "Ny opgave" trigger (opens the add sheet) --- */
+.add-trigger {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  margin-bottom: 24px;
+  background: var(--card-bg);
+  border: 2px dashed rgba(28, 25, 23, 0.1);
+  border-radius: var(--border-radius-lg);
+  cursor: pointer;
+  font-family: inherit;
+  box-shadow: var(--card-shadow-sm);
+  transition: var(--transition-spring);
 }
-.add-card:focus-within {
-  border-color: rgba(28, 25, 23, 0.12);
-  box-shadow: var(--card-shadow-lg);
+.add-trigger:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 122, 89, 0.4);
+  box-shadow: var(--card-shadow-md);
+}
+.add-trigger-plus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--accent-grad);
+  box-shadow: 0 3px 10px rgba(255, 94, 122, 0.35);
+}
+.add-trigger-text {
+  font-size: 15.5px;
+  font-weight: 600;
+  color: var(--text-tertiary);
 }
 
-/* Emoji indicator + input on one row */
+/* Emoji input + label input on one row (add/edit sheets) */
 .label-row {
   display: flex;
   align-items: stretch;
@@ -760,22 +786,6 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
 }
 .label-row .input {
   flex: 1;
-}
-.add-emoji {
-  display: none;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  flex-shrink: 0;
-  font-size: 26px;
-  background: var(--bg-app);
-  border: 1.5px solid rgba(28, 25, 23, 0.08);
-  border-radius: var(--border-radius-md);
-  margin-bottom: 12px;
-  line-height: 1;
-}
-.add-emoji.show {
-  display: flex;
 }
 
 /* Template gallery (tap-to-add preset tasks) */
@@ -968,12 +978,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   border-color: transparent;
 }
 
-.add-row2 {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-.assign-row { 
+.assign-row {
   display: flex; 
   gap: 6px; 
   flex: 1; 
@@ -1007,27 +1012,6 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   color: #fff; 
   border-color: transparent;
 }
-.add-button {
-  border: none;
-  background: var(--accent-grad);
-  color: #fff;
-  width: 46px;
-  height: 46px;
-  border-radius: 999px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  flex-shrink: 0;
-  font-size: 20px;
-  box-shadow: 0 4px 12px rgba(255, 94, 122, 0.35);
-  transition: var(--transition-spring);
-}
-.add-button:hover {
-  transform: translateY(-2px) scale(1.05);
-  box-shadow: 0 6px 16px rgba(255, 94, 122, 0.45);
-}
-
 /* --- Task List & Items --- */
 .list { 
   display: flex; 

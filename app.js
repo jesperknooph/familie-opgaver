@@ -25,19 +25,11 @@ let completions = []; // this week's completion log (drives the points tally)
 let unsubCompletions = null;
 let filter = "alle";
 let currentUser = null;
-let newAssignees = []; // 1 name normally; 2+ (with a repeat) = a rotating chore
-let newEmoji = "";
-let newDue = "";
-let newTime = ""; // "HH:MM" or ""
-let newAlarm = false; // notify at the task's time
-let newRepeat = null; // null | "daily" | "2day" | "weekly" | "2week"
-let newPoints = null; // star value credited on completion
 
 // Pending reminder timers, keyed by task id, so we can cancel/reschedule cleanly.
 const reminderTimers = new Map();
-let showTemplates = false;
 
-// Recurrence options shown in the add card, plus the step (in days) each implies.
+// Recurrence options shown in the add sheet, plus the step (in days) each implies.
 const REPEAT_OPTIONS = [
   { id: null, label: "Aldrig" },
   { id: "daily", label: "Dagligt" },
@@ -463,211 +455,22 @@ function renderShell() {
 
     <section class="stars-row" id="starsRow"></section>
 
-    <section class="add-card" id="addCard">
-      <div class="label-row">
-        <span class="add-emoji" id="addEmoji"></span>
-        <input class="input" id="newLabel" placeholder="Ny opgave …" />
-      </div>
-      <button class="template-toggle" id="templateToggle"></button>
-      <div class="template-gallery" id="templateGallery"></div>
-      <div class="add-meta">
-        <span class="date-field-label">Forfald</span>
-        <input type="date" class="date-input" id="newDue" />
-        <span id="dateClearContainer"></span>
-        <span class="date-field-label">Kl.</span>
-        <input type="time" class="date-input time-input" id="newTime" />
-        <span id="timeClearContainer"></span>
-        <button class="alarm-toggle" id="alarmToggle">🔔 Alarm</button>
-      </div>
-      <div class="repeat-row" id="repeatRow"></div>
-      <div class="repeat-row" id="pointsRow"></div>
-      <div class="assign-hint" id="assignHint"></div>
-      <div class="add-row2">
-        <div class="assign-row" id="assignRow"></div>
-        <button class="add-button" id="addBtn">${icon("plus", "#fff", 16)}</button>
-      </div>
-    </section>
+    <button class="add-trigger" id="openAdd">
+      <span class="add-trigger-plus">${icon("plus", "#fff", 16)}</span>
+      <span class="add-trigger-text">Ny opgave …</span>
+    </button>
 
     <div id="list-container"></div>
     <div id="footer-container"></div>
   `;
 
   // Attach shell-level handlers (only once)
-  document.getElementById("addBtn").onclick = addTask;
-  document.getElementById("newLabel").onkeydown = (e) => {
-    if (e.key === "Enter") addTask();
-  };
-  document.getElementById("newDue").onchange = (e) => {
-    newDue = e.target.value;
-    updateDateClearButton();
-  };
-  document.getElementById("newTime").onchange = (e) => {
-    newTime = e.target.value;
-    updateTimeClearButton();
-  };
-  document.getElementById("templateToggle").onclick = () => {
-    showTemplates = !showTemplates;
-    renderTemplateGallery();
-  };
+  document.getElementById("openAdd").onclick = openAddSheet;
 
   document.querySelectorAll("[data-view]").forEach((el) => {
     el.onclick = () => {
       view = el.dataset.view;
       updateWithTransition();
-    };
-  });
-}
-
-function updateDateClearButton() {
-  const container = document.getElementById("dateClearContainer");
-  if (!container) return;
-  if (newDue) {
-    container.innerHTML = `<button class="date-clear" id="clearDue">ryd</button>`;
-    document.getElementById("clearDue").onclick = () => {
-      newDue = "";
-      document.getElementById("newDue").value = "";
-      updateDateClearButton();
-    };
-  } else {
-    container.innerHTML = "";
-  }
-}
-
-function updateTimeClearButton() {
-  const container = document.getElementById("timeClearContainer");
-  if (!container) return;
-  if (newTime) {
-    container.innerHTML = `<button class="date-clear" id="clearTime">ryd</button>`;
-    document.getElementById("clearTime").onclick = () => {
-      newTime = "";
-      document.getElementById("newTime").value = "";
-      updateTimeClearButton();
-    };
-  } else {
-    container.innerHTML = "";
-  }
-}
-
-// The 🔔 Alarm toggle. Turning it on prompts for notification permission
-// (must happen inside the click gesture), and won't engage if blocked.
-function renderAlarmToggle() {
-  const btn = document.getElementById("alarmToggle");
-  if (!btn) return;
-  const supported = "Notification" in window;
-  btn.classList.toggle("active", newAlarm);
-  btn.classList.toggle("disabled", !supported);
-  btn.textContent = newAlarm ? "🔔 Alarm til" : "🔔 Alarm";
-  btn.onclick = async () => {
-    if (!supported) {
-      alert("Denne enhed understøtter ikke notifikationer.");
-      return;
-    }
-    if (newAlarm) {
-      newAlarm = false;
-      renderAlarmToggle();
-      return;
-    }
-    if (Notification.permission === "denied") {
-      alert("Notifikationer er blokeret. Tillad dem i browserens indstillinger for siden.");
-      return;
-    }
-    if (Notification.permission === "default") {
-      const perm = await Notification.requestPermission();
-      if (perm !== "granted") return;
-    }
-    newAlarm = true;
-    renderAlarmToggle();
-  };
-}
-
-// Reflects the chosen template's emoji next to the new-task input.
-function updateEmojiIndicator() {
-  const el = document.getElementById("addEmoji");
-  if (!el) return;
-  el.textContent = newEmoji;
-  el.classList.toggle("show", !!newEmoji);
-}
-
-// The tap-to-add gallery of preset tasks. Picking one fills the form (label +
-// emoji) and keeps the chosen person, so a parent just confirms who and when.
-function renderTemplateGallery() {
-  const toggle = document.getElementById("templateToggle");
-  if (toggle) {
-    toggle.innerHTML = `📋 Skabeloner ${showTemplates ? "▴" : "▾"}`;
-    toggle.classList.toggle("open", showTemplates);
-  }
-  const gallery = document.getElementById("templateGallery");
-  if (!gallery) return;
-  if (!showTemplates) {
-    gallery.innerHTML = "";
-    gallery.classList.remove("open");
-    return;
-  }
-  gallery.classList.add("open");
-  gallery.innerHTML = TASK_TEMPLATES.map(
-    (tpl, i) => `
-      <button class="template-chip" data-template="${i}">
-        <span class="template-emoji">${tpl.emoji}</span>
-        <span class="template-label">${escapeHtml(tpl.label)}</span>
-      </button>`
-  ).join("");
-
-  gallery.querySelectorAll("[data-template]").forEach((el) => {
-    el.onclick = () => {
-      const tpl = TASK_TEMPLATES[Number(el.dataset.template)];
-      newEmoji = tpl.emoji;
-      const input = document.getElementById("newLabel");
-      input.value = tpl.label;
-      newPoints = tpl.points || null;
-      renderPointsRow();
-      updateEmojiIndicator();
-      showTemplates = false; // collapse the gallery once a template is chosen
-      renderTemplateGallery();
-      input.focus();
-    };
-  });
-}
-
-// The "Gentag" chips that set how often a new task recurs.
-function renderRepeatRow() {
-  const row = document.getElementById("repeatRow");
-  if (!row) return;
-  row.innerHTML = `
-    <span class="repeat-row-label">Gentag</span>
-    <div class="repeat-chips">
-      ${REPEAT_OPTIONS.map(
-        (o) =>
-          `<button class="repeat-chip ${newRepeat === o.id ? "active" : ""}" data-repeat="${o.id}">${o.label}</button>`
-      ).join("")}
-    </div>`;
-  row.querySelectorAll("[data-repeat]").forEach((el) => {
-    el.onclick = () => {
-      const val = el.dataset.repeat;
-      newRepeat = val === "null" ? null : val;
-      // Rotation only makes sense for a recurring task — collapse to one person.
-      if (!newRepeat && newAssignees.length > 1) newAssignees = [newAssignees[0]];
-      render();
-    };
-  });
-}
-
-// The "Stjerner" chips: how many points completing this task is worth.
-function renderPointsRow() {
-  const row = document.getElementById("pointsRow");
-  if (!row) return;
-  row.innerHTML = `
-    <span class="repeat-row-label">Stjerner</span>
-    <div class="repeat-chips">
-      ${POINTS_OPTIONS.map(
-        (p) =>
-          `<button class="repeat-chip ${newPoints === p ? "active" : ""}" data-points="${p}">${p === null ? "Ingen" : `⭐ ${p}`}</button>`
-      ).join("")}
-    </div>`;
-  row.querySelectorAll("[data-points]").forEach((el) => {
-    el.onclick = () => {
-      const val = el.dataset.points;
-      newPoints = val === "null" ? null : Number(val);
-      renderPointsRow();
     };
   });
 }
@@ -697,7 +500,7 @@ function renderStars() {
 }
 
 function render() {
-  if (!document.getElementById("addCard")) {
+  if (!document.getElementById("openAdd")) {
     renderShell();
   }
 
@@ -773,40 +576,6 @@ function render() {
     });
   }
 
-  // Update assign-chips. Single-select normally; with a repeat set, tapping
-  // several people makes the chore rotate between them.
-  const assignRow = document.getElementById("assignRow");
-  if (assignRow) {
-    assignRow.innerHTML = MEMBERS.map(
-      (m) => `<button class="assign-chip ${newAssignees.includes(m.name) ? "active" : ""}" data-assign="${m.name}"
-        style="background:${newAssignees.includes(m.name) ? m.color : "#F6F3EC"}">${m.name}</button>`
-    ).join("");
-
-    document.querySelectorAll("[data-assign]").forEach((el) => {
-      el.onclick = () => {
-        const name = el.dataset.assign;
-        if (!newRepeat) {
-          newAssignees = [name];
-        } else if (newAssignees.includes(name)) {
-          if (newAssignees.length > 1) newAssignees = newAssignees.filter((n) => n !== name);
-        } else {
-          newAssignees = [...newAssignees, name];
-        }
-        render();
-        document.getElementById("newLabel").focus();
-      };
-    });
-  }
-
-  const assignHint = document.getElementById("assignHint");
-  if (assignHint) {
-    assignHint.textContent = newRepeat
-      ? newAssignees.length > 1
-        ? `🔄 Skiftes: ${newAssignees.join(" → ")}`
-        : "Tip: vælg flere personer, så skiftes de"
-      : "";
-  }
-
   // Update list-container (Liste or Uge)
   const visible = tasks.filter((t) => (filter === "alle" ? true : t.assignedTo === filter));
   const listVisible = visible
@@ -824,22 +593,6 @@ function render() {
     }
   }
 
-  // Sync date input values without resetting them
-  const dateInput = document.getElementById("newDue");
-  if (dateInput && dateInput.value !== newDue) {
-    dateInput.value = newDue;
-  }
-  const timeInput = document.getElementById("newTime");
-  if (timeInput && timeInput.value !== newTime) {
-    timeInput.value = newTime;
-  }
-  updateDateClearButton();
-  updateTimeClearButton();
-  updateEmojiIndicator();
-  renderTemplateGallery();
-  renderRepeatRow();
-  renderPointsRow();
-  renderAlarmToggle();
   renderStars();
 
   // Update footer container
@@ -888,40 +641,235 @@ function render() {
   if (clearDoneEl) clearDoneEl.onclick = clearDone;
 }
 
-async function addTask() {
-  const input = document.getElementById("newLabel");
-  const label = input.value.trim();
-  if (!label) return;
-  const id = uid();
-  // A recurring task (or a one-off alarm) needs a date to anchor it — default to today.
-  const needsAnchor = newRepeat || (newAlarm && newTime);
-  const due = needsAnchor && !newDue ? ymd(new Date()) : newDue || null;
-  const data = {
-    label,
-    emoji: newEmoji || null,
-    assignedTo: newAssignees[0],
-    done: false,
-    due,
-    time: newTime || null,
-    alarm: !!(newAlarm && newTime),
-    repeat: newRepeat || null,
-    ts: Date.now(),
+// The "Ny opgave" pop-out. All creation options live here, so the main screen
+// stays clean. Mirrors openEditSheet, plus the template gallery.
+function openAddSheet() {
+  let host = document.getElementById("addSheet");
+  if (!host) {
+    host = document.createElement("div");
+    host.id = "addSheet";
+    document.body.appendChild(host);
+  }
+
+  // Local draft state; text/date inputs are read from the DOM on save.
+  let due = "";
+  let time = "";
+  let alarm = false;
+  let repeat = null;
+  let assignees = [currentUser.name];
+  let points = null;
+  let showTpl = false;
+  let busy = false;
+
+  function close() {
+    host.remove();
+  }
+
+  host.innerHTML = `
+    <div class="modal-wrap">
+      <div class="modal-card edit-card">
+        <div class="modal-head">
+          <h2 class="modal-title">Ny opgave</h2>
+          <button class="modal-close" data-close="1">✕</button>
+        </div>
+
+        <button class="template-toggle" id="addTplToggle"></button>
+        <div class="template-gallery" id="addTplGallery"></div>
+
+        <div class="label-row edit-label-row">
+          <input class="input edit-emoji-input" id="addEmoji" maxlength="8" placeholder="🙂" />
+          <input class="input" id="addLabel" placeholder="Hvad skal der gøres?" />
+        </div>
+
+        <div class="add-meta">
+          <span class="date-field-label">Forfald</span>
+          <input type="date" class="date-input" id="addDue" />
+          <span class="date-field-label">Kl.</span>
+          <input type="time" class="date-input time-input" id="addTime" />
+          <button class="alarm-toggle" id="addAlarm"></button>
+        </div>
+
+        <div class="repeat-row" id="addRepeatRow"></div>
+        <div class="repeat-row" id="addPointsRow"></div>
+        <div class="assign-hint" id="addAssignHint"></div>
+        <div class="assign-row edit-assign-row" id="addAssignRow"></div>
+
+        <div class="sheet-actions">
+          <button class="btn-ghost" data-close="1">Annullér</button>
+          <button class="btn-primary" id="addSave">Tilføj</button>
+        </div>
+      </div>
+    </div>`;
+
+  const dueInput = host.querySelector("#addDue");
+  const timeInput = host.querySelector("#addTime");
+  dueInput.onchange = () => { due = dueInput.value; };
+  timeInput.onchange = () => { time = timeInput.value; drawAlarm(); };
+
+  // Tap-to-add gallery of preset tasks; picking one fills the form.
+  function drawTemplates() {
+    const toggle = host.querySelector("#addTplToggle");
+    toggle.innerHTML = `📋 Skabeloner ${showTpl ? "▴" : "▾"}`;
+    toggle.classList.toggle("open", showTpl);
+    toggle.onclick = () => {
+      showTpl = !showTpl;
+      drawTemplates();
+    };
+    const gallery = host.querySelector("#addTplGallery");
+    if (!showTpl) {
+      gallery.innerHTML = "";
+      gallery.classList.remove("open");
+      return;
+    }
+    gallery.classList.add("open");
+    gallery.innerHTML = TASK_TEMPLATES.map(
+      (tpl, i) => `
+        <button class="template-chip" data-template="${i}">
+          <span class="template-emoji">${tpl.emoji}</span>
+          <span class="template-label">${escapeHtml(tpl.label)}</span>
+        </button>`
+    ).join("");
+    gallery.querySelectorAll("[data-template]").forEach((el) => {
+      el.onclick = () => {
+        const tpl = TASK_TEMPLATES[Number(el.dataset.template)];
+        host.querySelector("#addEmoji").value = tpl.emoji;
+        host.querySelector("#addLabel").value = tpl.label;
+        points = tpl.points || null;
+        drawChips();
+        showTpl = false; // collapse the gallery once a template is chosen
+        drawTemplates();
+        host.querySelector("#addLabel").focus();
+      };
+    });
+  }
+
+  function drawAlarm() {
+    const btn = host.querySelector("#addAlarm");
+    const supported = "Notification" in window;
+    btn.classList.toggle("active", alarm);
+    btn.classList.toggle("disabled", !supported);
+    btn.textContent = alarm ? "🔔 Alarm til" : "🔔 Alarm";
+    btn.onclick = async () => {
+      if (!supported) return alert("Denne enhed understøtter ikke notifikationer.");
+      if (alarm) { alarm = false; return drawAlarm(); }
+      if (Notification.permission === "denied")
+        return alert("Notifikationer er blokeret. Tillad dem i browserens indstillinger for siden.");
+      if (Notification.permission === "default") {
+        const perm = await Notification.requestPermission();
+        if (perm !== "granted") return;
+      }
+      alarm = true;
+      drawAlarm();
+    };
+  }
+
+  function drawChips() {
+    host.querySelector("#addRepeatRow").innerHTML = `
+      <span class="repeat-row-label">Gentag</span>
+      <div class="repeat-chips">
+        ${REPEAT_OPTIONS.map(
+          (o) => `<button class="repeat-chip ${repeat === o.id ? "active" : ""}" data-repeat="${o.id}">${o.label}</button>`
+        ).join("")}
+      </div>`;
+    host.querySelector("#addPointsRow").innerHTML = `
+      <span class="repeat-row-label">Stjerner</span>
+      <div class="repeat-chips">
+        ${POINTS_OPTIONS.map(
+          (p) => `<button class="repeat-chip ${points === p ? "active" : ""}" data-points="${p}">${p === null ? "Ingen" : `⭐ ${p}`}</button>`
+        ).join("")}
+      </div>`;
+    host.querySelector("#addAssignRow").innerHTML = MEMBERS.map(
+      (m) => `<button class="assign-chip ${assignees.includes(m.name) ? "active" : ""}" data-assign="${m.name}"
+        style="background:${assignees.includes(m.name) ? m.color : "#F6F3EC"}">${m.name}</button>`
+    ).join("");
+    host.querySelector("#addAssignHint").textContent = repeat
+      ? assignees.length > 1
+        ? `🔄 Skiftes: ${assignees.join(" → ")}`
+        : "Tip: vælg flere personer, så skiftes de"
+      : "";
+
+    host.querySelectorAll("[data-repeat]").forEach((el) => {
+      el.onclick = () => {
+        const val = el.dataset.repeat;
+        repeat = val === "null" ? null : val;
+        // Rotation only makes sense for a recurring task — collapse to one person.
+        if (!repeat && assignees.length > 1) assignees = [assignees[0]];
+        drawChips();
+      };
+    });
+    host.querySelectorAll("[data-points]").forEach((el) => {
+      el.onclick = () => {
+        const val = el.dataset.points;
+        points = val === "null" ? null : Number(val);
+        drawChips();
+      };
+    });
+    host.querySelectorAll("[data-assign]").forEach((el) => {
+      el.onclick = () => {
+        const name = el.dataset.assign;
+        if (!repeat) {
+          assignees = [name];
+        } else if (assignees.includes(name)) {
+          if (assignees.length > 1) assignees = assignees.filter((n) => n !== name);
+        } else {
+          assignees = [...assignees, name];
+        }
+        drawChips();
+      };
+    });
+  }
+
+  host.querySelectorAll("[data-close]").forEach((el) => (el.onclick = close));
+  host.querySelector(".modal-wrap").onclick = (e) => {
+    if (e.target === e.currentTarget) close();
   };
-  // New optional fields are omitted (not written as null) when unused, so
-  // documents stay valid even under the previous published rules.
-  if (newRepeat && newAssignees.length > 1) data.rotation = [...newAssignees];
-  if (newPoints) data.points = newPoints;
-  await setDoc(doc(tasksCol, id), data);
-  input.value = "";
-  newEmoji = "";
-  newAlarm = false;
-  newRepeat = null;
-  newPoints = null;
-  newAssignees = [newAssignees[0]];
-  updateEmojiIndicator();
-  renderRepeatRow();
-  renderPointsRow();
-  renderAlarmToggle();
+
+  async function save() {
+    if (busy) return;
+    const label = host.querySelector("#addLabel").value.trim();
+    if (!label) return alert("Opgaven skal have en tekst.");
+    const emoji = host.querySelector("#addEmoji").value.trim();
+    // A recurring task (or a one-off alarm) needs a date to anchor it — default to today.
+    const needsAnchor = repeat || (alarm && time);
+    const finalDue = needsAnchor && !due ? ymd(new Date()) : due || null;
+    const data = {
+      label,
+      emoji: emoji || null,
+      assignedTo: assignees[0],
+      done: false,
+      due: finalDue,
+      time: time || null,
+      alarm: !!(alarm && time),
+      repeat: repeat || null,
+      ts: Date.now(),
+    };
+    // New optional fields are omitted (not written as null) when unused, so
+    // documents stay valid even under the previous published rules.
+    if (repeat && assignees.length > 1) data.rotation = [...assignees];
+    if (points) data.points = points;
+    busy = true;
+    const saveBtn = host.querySelector("#addSave");
+    saveBtn.textContent = "…";
+    try {
+      await setDoc(doc(tasksCol, uid()), data);
+      close();
+    } catch (e) {
+      console.error("Adding task failed:", e);
+      busy = false;
+      saveBtn.textContent = "Tilføj";
+      alert("Kunne ikke gemme opgaven. Er du online?");
+    }
+  }
+
+  host.querySelector("#addSave").onclick = save;
+  host.querySelector("#addLabel").onkeydown = (e) => {
+    if (e.key === "Enter") save();
+  };
+
+  drawTemplates();
+  drawAlarm();
+  drawChips();
+  host.querySelector("#addLabel").focus();
 }
 
 // A small confetti burst from the checkbox when a task is completed.
@@ -1170,7 +1118,7 @@ function openEditSheet(t) {
     const label = host.querySelector("#editLabel").value.trim();
     if (!label) return alert("Opgaven skal have en tekst.");
     const emoji = host.querySelector("#editEmoji").value.trim();
-    // Same anchoring rule as addTask: repeats and alarms need a date.
+    // Same anchoring rule as the add sheet: repeats and alarms need a date.
     const needsAnchor = repeat || (alarm && time);
     const finalDue = needsAnchor && !due ? ymd(new Date()) : due || null;
     const rotation = repeat && assignees.length > 1 ? [...assignees] : null;
@@ -1284,7 +1232,6 @@ try {
 
 // Gate the app behind the family login before subscribing to data.
 currentUser = await ensureAuth();
-newAssignees = [currentUser.name];
 
 // Real-time listener — every connected device updates instantly.
 const q = query(tasksCol, orderBy("ts", "desc"));
