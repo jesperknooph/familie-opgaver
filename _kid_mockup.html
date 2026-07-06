@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kid mode mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<style>
+  /* --- Proposed kid-mode additions (mockup only) --- */
+  :root { --kid-accent: #7C5CFF; }
+
+  .kid-hello {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    margin-bottom: 18px;
+  }
+  .kid-face {
+    position: relative;
+    width: 52px;
+    height: 52px;
+    padding: 0;
+    border-radius: 50%;
+    border: 3px solid var(--kid-accent);
+    background: color-mix(in srgb, var(--kid-accent) 12%, transparent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Outfit', sans-serif;
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--kid-accent);
+    flex-shrink: 0;
+    cursor: pointer;
+    animation: faceIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+    transition: var(--transition-spring);
+  }
+  .kid-face:hover { transform: scale(1.08); }
+  .kid-face-edit {
+    position: absolute;
+    bottom: -4px;
+    right: -6px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--card-bg);
+    box-shadow: var(--card-shadow-sm);
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-smooth);
+  }
+  /* Once the look has been customised, the hint shrinks out of the way —
+     it only needs to teach the tap the first time. */
+  .kid-face.customized .kid-face-edit {
+    width: 14px;
+    height: 14px;
+    font-size: 7px;
+    bottom: -3px;
+    right: -5px;
+    opacity: 0.8;
+  }
+  @keyframes faceIn {
+    from { opacity: 0; transform: scale(0.3) rotate(-20deg); }
+    to { opacity: 1; transform: scale(1) rotate(0deg); }
+  }
+  .kid-hello-text { flex: 1; min-width: 0; }
+  .kid-hello-text .kid-hi {
+    font-family: 'Outfit', sans-serif;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    line-height: 1.1;
+    white-space: nowrap;
+  }
+  /* Waving hand loop */
+  .kid-wave {
+    display: inline-block;
+    animation: wave 2.2s ease-in-out infinite;
+    transform-origin: 70% 70%;
+  }
+  @keyframes wave {
+    0%, 55%, 100% { transform: rotate(0deg); }
+    10% { transform: rotate(22deg); }
+    20% { transform: rotate(-12deg); }
+    30% { transform: rotate(18deg); }
+    40% { transform: rotate(-6deg); }
+  }
+  .kid-hello-text .kid-date {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: capitalize;
+    margin-top: 2px;
+  }
+  .kid-hello .theme-btn { margin-left: auto; flex-shrink: 0; }
+  .kid-hello .logout-btn { flex-shrink: 0; padding: 6px 10px; }
+
+  /* Big friendly progress with shimmering fill */
+  .kid-progress {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--card-shadow-sm);
+    padding: 16px;
+    margin-bottom: 18px;
+    animation: cardIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s backwards;
+  }
+  .kid-progress-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 10px;
+  }
+  .kid-progress-label {
+    font-family: 'Outfit', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .kid-progress-count {
+    font-family: 'Outfit', sans-serif;
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--text-secondary);
+  }
+  .kid-progress-count.bump {
+    animation: countBump 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes countBump {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.35); color: #F59E0B; }
+    100% { transform: scale(1); }
+  }
+  .kid-progress .progress-track { height: 22px; }
+  .kid-progress .progress-fill {
+    position: relative;
+    overflow: hidden;
+  }
+  .kid-progress .progress-fill::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.5) 50%, transparent 70%);
+    animation: shine 2.4s ease-in-out infinite;
+  }
+  @keyframes shine {
+    from { transform: translateX(-100%); }
+    60%, to { transform: translateX(100%); }
+  }
+  .kid-week-stars {
+    margin-top: 10px;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--text-secondary);
+  }
+
+  /* Two big tabs */
+  .kid-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    animation: cardIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.18s backwards;
+  }
+  .kid-tab {
+    flex: 1;
+    border: none;
+    padding: 14px 0;
+    border-radius: 999px;
+    font-family: 'Outfit', sans-serif;
+    font-size: 16.5px;
+    font-weight: 800;
+    color: var(--text-secondary);
+    background: rgba(28, 25, 23, 0.06);
+    cursor: pointer;
+    transition: var(--transition-spring);
+  }
+  html.dark .kid-tab { background: rgba(255, 255, 255, 0.08); }
+  .kid-tab.active {
+    background: var(--accent-grad);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(255, 94, 122, 0.35);
+    transform: scale(1.03);
+  }
+
+  /* Big task cards with staggered bounce-in */
+  .kid-task {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-left: 6px solid var(--kid-accent);
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--card-shadow-sm);
+    padding: 16px;
+    margin-bottom: 12px;
+    animation: cardIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+    transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(26px) scale(0.94); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .kid-task.pop {
+    animation: taskPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes taskPop {
+    0% { transform: scale(1) rotate(0deg); }
+    30% { transform: scale(1.04) rotate(1.2deg); }
+    60% { transform: scale(0.97) rotate(-1deg); }
+    100% { transform: scale(1) rotate(0deg); }
+  }
+  .kid-task-emoji {
+    width: 58px;
+    height: 58px;
+    border-radius: var(--border-radius-md);
+    background: color-mix(in srgb, var(--kid-accent) 8%, transparent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 34px;
+    flex-shrink: 0;
+  }
+  .kid-task.pop .kid-task-emoji {
+    animation: emojiParty 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes emojiParty {
+    0% { transform: scale(1) rotate(0deg); }
+    35% { transform: scale(1.35) rotate(-10deg); }
+    70% { transform: scale(1.15) rotate(8deg); }
+    100% { transform: scale(1) rotate(0deg); }
+  }
+  .kid-task-body { flex: 1; min-width: 0; }
+  .kid-task-label {
+    font-family: 'Outfit', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+  }
+  .kid-task-meta {
+    display: flex;
+    gap: 6px;
+    margin-top: 5px;
+    flex-wrap: wrap;
+  }
+  .kid-check {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 3px solid rgba(28, 25, 23, 0.12);
+    background: transparent;
+    flex-shrink: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-spring);
+  }
+  html.dark .kid-check { border-color: rgba(255, 255, 255, 0.18); }
+  .kid-check:hover { transform: scale(1.1); border-color: #10B981; }
+  .kid-task.done { opacity: 0.55; }
+  .kid-task.done .kid-task-label { text-decoration: line-through; color: var(--text-secondary); }
+  .kid-check.done {
+    border: none;
+    background: #10B981;
+    animation: checkPopBig 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes checkPopBig {
+    0% { transform: scale(0.4); }
+    60% { transform: scale(1.25); }
+    100% { transform: scale(1); }
+  }
+  /* The checkmark draws itself */
+  .kid-check.done svg path {
+    stroke-dasharray: 26;
+    stroke-dashoffset: 26;
+    animation: draw 0.35s ease-out 0.15s forwards;
+  }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+
+  /* Simple week overview */
+  .kid-day {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--border-radius-md);
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    animation: cardIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  }
+  .kid-day.kid-today {
+    border: 2px solid var(--kid-accent);
+    animation: cardIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards, todayGlow 2.6s ease-in-out 0.8s infinite;
+    cursor: pointer;
+    transition: var(--transition-spring);
+  }
+  .kid-day.kid-today:hover {
+    transform: scale(1.02);
+  }
+  .kid-day.kid-today:active {
+    transform: scale(0.97);
+  }
+  @keyframes todayGlow {
+    0%, 100% { box-shadow: 0 0 0 0 transparent; }
+    50% { box-shadow: 0 0 18px 2px color-mix(in srgb, var(--kid-accent) 35%, transparent); }
+  }
+  .kid-day-name {
+    font-family: 'Outfit', sans-serif;
+    font-size: 15px;
+    font-weight: 800;
+    width: 52px;
+    flex-shrink: 0;
+  }
+  .kid-day.kid-today .kid-day-name { color: var(--kid-accent); }
+  .kid-day.kid-today .kid-day-state { color: var(--kid-accent); }
+
+  /* "Vælg dit look" picker */
+  .kid-look-label {
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-secondary);
+    margin: 16px 0 8px;
+  }
+  .kid-emoji-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+  }
+  .kid-emoji-opt {
+    border: 2px solid transparent;
+    background: var(--bg-app);
+    border-radius: var(--border-radius-sm);
+    font-size: 24px;
+    font-family: 'Outfit', sans-serif;
+    font-weight: 800;
+    color: var(--kid-accent);
+    padding: 7px 0;
+    cursor: pointer;
+    line-height: 1.2;
+    transition: var(--transition-spring);
+  }
+  .kid-emoji-opt:hover { transform: scale(1.12); }
+  .kid-emoji-opt.active {
+    border-color: var(--kid-accent);
+    background: color-mix(in srgb, var(--kid-accent) 10%, transparent);
+  }
+  .kid-color-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .kid-color-dot {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    cursor: pointer;
+    padding: 0;
+    transition: var(--transition-spring);
+  }
+  .kid-color-dot:hover { transform: scale(1.15); }
+  .kid-color-dot.active {
+    border-color: var(--text-primary);
+    transform: scale(1.12);
+  }
+  .kid-day-emojis {
+    flex: 1;
+    font-size: 24px;
+    letter-spacing: 4px;
+  }
+  .kid-day-free {
+    flex: 1;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+  }
+  .kid-day-state {
+    font-size: 15px;
+    font-weight: 800;
+    color: #10B981;
+    flex-shrink: 0;
+    animation: statePop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  }
+  @keyframes statePop {
+    from { transform: scale(0); }
+    60% { transform: scale(1.3); }
+    to { transform: scale(1); }
+  }
+
+  /* Full-screen celebration when the day is done */
+  .kid-celebrate {
+    position: fixed;
+    inset: 0;
+    z-index: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(28, 25, 23, 0.45);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    animation: fadeIn 0.3s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .kid-celebrate-card {
+    background: var(--card-bg);
+    border-radius: var(--border-radius-xl);
+    box-shadow: var(--card-shadow-lg);
+    padding: 36px 40px;
+    text-align: center;
+    animation: celebrateIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes celebrateIn {
+    from { opacity: 0; transform: scale(0.5) translateY(40px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  .kid-celebrate-trophy {
+    font-size: 74px;
+    line-height: 1;
+    display: inline-block;
+    animation: trophyBounce 1.1s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+  }
+  @keyframes trophyBounce {
+    0%, 100% { transform: translateY(0) rotate(-4deg); }
+    50% { transform: translateY(-16px) rotate(4deg); }
+  }
+  .kid-celebrate-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 28px;
+    font-weight: 800;
+    margin: 14px 0 4px;
+  }
+  .kid-celebrate-sub {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+  .kid-celebrate-stars {
+    margin-top: 14px;
+    font-size: 24px;
+    letter-spacing: 6px;
+  }
+  .kid-celebrate-stars span {
+    display: inline-block;
+    animation: starTwinkle 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  }
+  @keyframes starTwinkle {
+    from { transform: scale(0) rotate(-90deg); }
+    70% { transform: scale(1.4) rotate(10deg); }
+    to { transform: scale(1) rotate(0deg); }
+  }
+
+  .confetti-bit { border-radius: 2px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .kid-wave, .kid-face, .kid-progress .progress-fill::after,
+    .kid-task, .kid-day, .kid-celebrate-trophy { animation: none !important; }
+  }
+</style>
+</head>
+<body>
+<div id="app" style="max-width: 400px;">
+
+  <div class="kid-hello">
+    <button class="kid-face" id="kidFace"><span id="kidFaceGlyph">E</span><span class="kid-face-edit">✏️</span></button>
+    <span class="kid-hello-text">
+      <div class="kid-hi">Hej Edith! <span class="kid-wave">👋</span></div>
+      <div class="kid-date">Søndag 5. juli</div>
+    </span>
+    <button class="theme-btn" id="themeBtn">🌙</button>
+    <button class="logout-btn" id="kidLogout">Log ud</button>
+  </div>
+
+  <div class="kid-progress">
+    <div class="kid-progress-top">
+      <span class="kid-progress-label">Din dag</span>
+      <span class="kid-progress-count" id="kidCount">⭐ 2 af 4</span>
+    </div>
+    <div class="progress-track"><div class="progress-fill" id="kidFill" style="width:50%"></div></div>
+    <div class="kid-week-stars">🏆 Denne uge: <span id="kidWeekStars">7</span> stjerner</div>
+  </div>
+
+  <div class="kid-tabs">
+    <button class="kid-tab active" data-tab="today">☀️ I dag</button>
+    <button class="kid-tab" data-tab="week">📅 Min uge</button>
+  </div>
+
+  <div id="panelToday">
+    <div class="kid-task" style="animation-delay: 0.25s">
+      <span class="kid-task-emoji">🦷</span>
+      <span class="kid-task-body">
+        <div class="kid-task-label">Børste tænder</div>
+        <div class="kid-task-meta"><span class="task-time has-alarm">🔔 19:30</span><span class="task-points">⭐ 1</span></div>
+      </span>
+      <button class="kid-check" data-stars="1"></button>
+    </div>
+
+    <div class="kid-task" style="animation-delay: 0.33s">
+      <span class="kid-task-emoji">🧸</span>
+      <span class="kid-task-body">
+        <div class="kid-task-label">Rydde op på værelset</div>
+        <div class="kid-task-meta"><span class="task-points">⭐ 2</span></div>
+      </span>
+      <button class="kid-check" data-stars="2"></button>
+    </div>
+
+    <div class="kid-task done" style="animation-delay: 0.41s">
+      <span class="kid-task-emoji">🐕</span>
+      <span class="kid-task-body">
+        <div class="kid-task-label">Gå med Abbey</div>
+        <div class="kid-task-meta"><span class="task-points">⭐ 1</span></div>
+      </span>
+      <button class="kid-check done" data-stars="1"><svg width="22" height="22" viewBox="0 0 24 24"><path d="M5 13l5 5L20 7" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+
+    <div class="kid-task done" style="animation-delay: 0.49s">
+      <span class="kid-task-emoji">🛏️</span>
+      <span class="kid-task-body">
+        <div class="kid-task-label">Rede seng</div>
+        <div class="kid-task-meta"><span class="task-points">⭐ 1</span></div>
+      </span>
+      <button class="kid-check done" data-stars="1"><svg width="22" height="22" viewBox="0 0 24 24"><path d="M5 13l5 5L20 7" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+  </div>
+
+  <div id="panelWeek" style="display:none">
+    <div class="kid-day" style="animation-delay: 0.05s">
+      <span class="kid-day-name">Man</span>
+      <span class="kid-day-emojis">🦷🛏️</span>
+      <span class="kid-day-state" style="animation-delay: 0.35s">✓ Færdig</span>
+    </div>
+    <div class="kid-day" style="animation-delay: 0.1s">
+      <span class="kid-day-name">Tir</span>
+      <span class="kid-day-emojis">🦷🐕</span>
+      <span class="kid-day-state" style="animation-delay: 0.45s">✓ Færdig</span>
+    </div>
+    <div class="kid-day" style="animation-delay: 0.15s">
+      <span class="kid-day-name">Ons</span>
+      <span class="kid-day-emojis">🦷</span>
+      <span class="kid-day-state" style="animation-delay: 0.55s">✓ Færdig</span>
+    </div>
+    <div class="kid-day" style="animation-delay: 0.2s">
+      <span class="kid-day-name">Tor</span>
+      <span class="kid-day-emojis">🦷🧸🐕</span>
+      <span class="kid-day-state" style="animation-delay: 0.65s">✓ Færdig</span>
+    </div>
+    <div class="kid-day" style="animation-delay: 0.25s">
+      <span class="kid-day-name">Fre</span>
+      <span class="kid-day-emojis">🦷</span>
+      <span class="kid-day-state" style="animation-delay: 0.75s">✓ Færdig</span>
+    </div>
+    <div class="kid-day" style="animation-delay: 0.3s">
+      <span class="kid-day-name">Lør</span>
+      <span class="kid-day-emojis">🦷🐕</span>
+      <span class="kid-day-state" style="animation-delay: 0.85s">✓ Færdig</span>
+    </div>
+    <div class="kid-day kid-today" style="animation-delay: 0.35s">
+      <span class="kid-day-name">Søn</span>
+      <span class="kid-day-emojis">🦷🧸🐕🛏️</span>
+      <span class="kid-day-state" id="kidTodayState" style="animation-delay: 0.95s">2/4</span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // Mockup interactivity so the animations can be felt, not just described.
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function confetti(anchor, big) {
+    if (reduced) return;
+    const rect = anchor.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const colors = ["#7C5CFF", "#FFC53D", "#FF5E7A", "#38BDF8", "#4ADE80", "#A78BFA"];
+    const n = big ? 60 : 24;
+    for (let i = 0; i < n; i++) {
+      const bit = document.createElement("span");
+      bit.className = "confetti-bit";
+      const size = 5 + Math.random() * 7;
+      const h = Math.random() > 0.5 ? size : size * 0.4;
+      bit.style.cssText = `position:fixed; z-index:2000; pointer-events:none; left:${cx}px; top:${cy}px; width:${size}px; height:${h}px; background:${colors[i % colors.length]};`;
+      document.body.appendChild(bit);
+      const angle = Math.random() * Math.PI * 2;
+      const dist = (big ? 90 : 45) + Math.random() * (big ? 160 : 80);
+      const dx = Math.cos(angle) * dist;
+      const dy = Math.sin(angle) * dist - (big ? 120 : 60);
+      bit.animate(
+        [
+          { transform: "translate(0,0) rotate(0deg) scale(1)", opacity: 1 },
+          { transform: `translate(${dx}px, ${dy + (big ? 260 : 120)}px) rotate(${Math.random() * 720 - 360}deg) scale(0.5)`, opacity: 0 },
+        ],
+        { duration: (big ? 1100 : 700) + Math.random() * 600, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "forwards" }
+      ).onfinish = () => bit.remove();
+    }
+  }
+
+  let done = 2, total = 4, weekStars = 7;
+
+  function celebrate() {
+    const el = document.createElement("div");
+    el.className = "kid-celebrate";
+    el.innerHTML = `
+      <div class="kid-celebrate-card">
+        <span class="kid-celebrate-trophy">🏆</span>
+        <div class="kid-celebrate-title">Alt klaret!</div>
+        <div class="kid-celebrate-sub">Sikke en sej dag, Edith!</div>
+        <div class="kid-celebrate-stars">
+          <span style="animation-delay:0.5s">⭐</span><span style="animation-delay:0.65s">⭐</span><span style="animation-delay:0.8s">⭐</span><span style="animation-delay:0.95s">⭐</span><span style="animation-delay:1.1s">⭐</span>
+        </div>
+      </div>`;
+    el.onclick = () => el.remove();
+    document.body.appendChild(el);
+    confetti(el.querySelector(".kid-celebrate-trophy"), true);
+    setTimeout(() => confetti(el.querySelector(".kid-celebrate-stars"), true), 600);
+  }
+
+  const CHECK_SVG = `<svg width="22" height="22" viewBox="0 0 24 24"><path d="M5 13l5 5L20 7" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+  function refreshProgress(bump) {
+    const count = document.getElementById("kidCount");
+    count.textContent = `⭐ ${done} af ${total}`;
+    count.classList.remove("bump");
+    void count.offsetWidth; // restart the bump animation
+    if (bump) count.classList.add("bump");
+    document.getElementById("kidFill").style.width = `${Math.round((done / total) * 100)}%`;
+    document.getElementById("kidWeekStars").textContent = weekStars;
+    document.getElementById("kidTodayState").textContent = `${done}/${total}`;
+  }
+
+  // Every check is a toggle: tap to complete (with fanfare), tap again to
+  // uncheck — the stars go back, so nothing can be double-counted.
+  document.querySelectorAll(".kid-check").forEach((btn) => {
+    btn.onclick = () => {
+      const task = btn.closest(".kid-task");
+      const stars = Number(btn.dataset.stars || 1);
+      if (btn.classList.contains("done")) {
+        // Uncheck quietly: no confetti for un-doing.
+        btn.classList.remove("done");
+        btn.innerHTML = "";
+        task.classList.remove("done", "pop");
+        done -= 1;
+        weekStars -= stars;
+        refreshProgress(false);
+      } else {
+        btn.classList.add("done");
+        btn.innerHTML = CHECK_SVG;
+        task.classList.add("pop");
+        setTimeout(() => {
+          if (btn.classList.contains("done")) task.classList.add("done");
+        }, 350);
+        confetti(btn, false);
+        done += 1;
+        weekStars += stars;
+        refreshProgress(true);
+        if (done === total) setTimeout(celebrate, 650);
+      }
+    };
+  });
+
+  document.querySelectorAll(".kid-tab").forEach((tab) => {
+    tab.onclick = () => {
+      document.querySelectorAll(".kid-tab").forEach((t) => t.classList.toggle("active", t === tab));
+      const week = tab.dataset.tab === "week";
+      document.getElementById("panelToday").style.display = week ? "none" : "";
+      const panelWeek = document.getElementById("panelWeek");
+      panelWeek.style.display = week ? "" : "none";
+      if (week && !reduced) {
+        // Restart the staggered entrance each time the week tab opens
+        panelWeek.querySelectorAll(".kid-day, .kid-day-state").forEach((el) => {
+          el.style.animation = "none";
+          void el.offsetWidth;
+          el.style.animation = "";
+        });
+      }
+    };
+  });
+
+  // Tapping today's row in the week view jumps straight to the day view.
+  document.querySelector(".kid-day.kid-today").onclick = () => {
+    document.querySelector('.kid-tab[data-tab="today"]').click();
+    window.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" });
+  };
+
+  document.getElementById("themeBtn").onclick = () => {
+    const dark = !document.documentElement.classList.contains("dark");
+    document.documentElement.classList.toggle("dark", dark);
+    document.getElementById("themeBtn").textContent = dark ? "☀️" : "🌙";
+  };
+
+  // "Vælg dit look": pick your own face + accent color. In the real app this
+  // is saved per member in Firestore so it follows them across devices.
+  const LOOK_FACES = ["E", "😎", "🦄", "🐱", "🐶", "🦊", "🐼", "⚽", "🏀", "🎮", "🎸", "🚀"];
+  const LOOK_COLORS = ["#7C5CFF", "#FF5E7A", "#38BDF8", "#10B981", "#F97316", "#EF4444", "#14B8A6", "#D946EF"];
+  let myFace = "E";
+  let myColor = "#7C5CFF";
+
+  document.getElementById("kidFace").onclick = () => {
+    const host = document.createElement("div");
+    host.style.cssText = "position:fixed; inset:0; z-index:700;";
+    function draw() {
+      host.innerHTML = `
+        <div class="modal-wrap">
+          <div class="modal-card">
+            <div class="modal-head">
+              <h2 class="modal-title">Vælg dit look</h2>
+              <button class="modal-close" data-close="1">✕</button>
+            </div>
+            <div class="kid-look-label">Din figur</div>
+            <div class="kid-emoji-grid">
+              ${LOOK_FACES.map((f) => `<button class="kid-emoji-opt ${f === myFace ? "active" : ""}" data-face="${f}">${f}</button>`).join("")}
+            </div>
+            <div class="kid-look-label">Din farve</div>
+            <div class="kid-color-row">
+              ${LOOK_COLORS.map((c) => `<button class="kid-color-dot ${c === myColor ? "active" : ""}" data-color="${c}" style="background:${c}"></button>`).join("")}
+            </div>
+            <div class="sheet-actions">
+              <button class="btn-primary" data-close="1">Færdig</button>
+            </div>
+          </div>
+        </div>`;
+      host.querySelectorAll("[data-face]").forEach((el) => {
+        el.onclick = () => {
+          myFace = el.dataset.face;
+          document.getElementById("kidFaceGlyph").textContent = myFace;
+          document.getElementById("kidFace").classList.add("customized");
+          draw();
+        };
+      });
+      host.querySelectorAll("[data-color]").forEach((el) => {
+        el.onclick = () => {
+          myColor = el.dataset.color;
+          document.documentElement.style.setProperty("--kid-accent", myColor);
+          document.getElementById("kidFace").classList.add("customized");
+          draw();
+        };
+      });
+      host.querySelectorAll("[data-close]").forEach((el) => (el.onclick = () => host.remove()));
+      host.querySelector(".modal-wrap").onclick = (e) => {
+        if (e.target === e.currentTarget) host.remove();
+      };
+    }
+    draw();
+    document.body.appendChild(host);
+  };
+
+  document.getElementById("kidLogout").onclick = () => {
+    alert("I den rigtige app logger dette Edith ud, tilbage til 'Hvem er du?'-skærmen. (Kun mockup 🙂)");
+  };
+</script>
+</body>
+</html>
