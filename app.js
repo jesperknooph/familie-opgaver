@@ -19,12 +19,16 @@ const MONTHS = ["jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "
 
 const tasksCol = collection(db, "tasks");
 const completionsCol = collection(db, "completions");
+const membersCol = collection(db, "members");
 
 let tasks = [];
 let completions = []; // this week's completion log (drives the points tally)
 let unsubCompletions = null;
 let filter = "alle";
 let currentUser = null;
+let looks = {}; // per-member custom look from Firestore: name -> { face, color }
+let kidView = "idag"; // kid mode: "idag" | "uge"
+let kidAnimate = true; // entrance animations on first paint & tab switch only
 
 // Pending reminder timers, keyed by task id, so we can cancel/reschedule cleanly.
 const reminderTimers = new Map();
@@ -46,8 +50,12 @@ let connected = false;
 
 const app = document.getElementById("app");
 
+// A member's chosen look (kid mode "Vælg dit look") wins over the default.
 function colorFor(name) {
-  return MEMBERS.find((m) => m.name === name)?.color || "#8A8296";
+  return looks[name]?.color || MEMBERS.find((m) => m.name === name)?.color || "#8A8296";
+}
+function faceFor(name) {
+  return looks[name]?.face || name[0];
 }
 
 function uid() {
@@ -497,11 +505,17 @@ function renderStars() {
     `<span class="stars-label">⭐ Denne uge</span>` +
     MEMBERS.map(
       (m) =>
-        `<span class="stars-chip" style="color:${m.color}">${m.name} <strong>${weekPoints[m.name]}</strong></span>`
+        `<span class="stars-chip" style="color:${colorFor(m.name)}">${m.name} <strong>${weekPoints[m.name]}</strong></span>`
     ).join("");
 }
 
 function render() {
+  // Anker & Edith get the simplified kid mode; parents get the full app.
+  if (currentUser && !isAdmin(currentUser)) {
+    renderKidMode();
+    return;
+  }
+
   if (!document.getElementById("openAdd")) {
     renderShell();
   }
@@ -516,14 +530,9 @@ function render() {
     `;
   }
 
-  // Kids (non-admins) only see their own tasks; parents see the whole family's.
-  const myTasks = isAdmin(currentUser)
-    ? tasks
-    : tasks.filter((t) => t.assignedTo === currentUser.name);
-
   // Update counts
-  const openCount = myTasks.filter((t) => !t.done).length;
-  const doneCount = myTasks.length - openCount;
+  const openCount = tasks.filter((t) => !t.done).length;
+  const doneCount = tasks.length - openCount;
   const countsElement = document.getElementById("taskCounts");
   if (countsElement) {
     countsElement.textContent = 
@@ -561,41 +570,33 @@ function render() {
     }
   });
 
-  // Update avatar-row counts & filter status. Kids have no filter row — their
-  // list is always just their own tasks.
+  // Update avatar-row counts & filter status
   const avatarRow = document.getElementById("avatarRow");
   if (avatarRow) {
-    if (!isAdmin(currentUser)) {
-      filter = "alle";
-      avatarRow.innerHTML = "";
-      avatarRow.style.display = "none";
-    } else {
-      avatarRow.style.display = "";
-      const counts = MEMBERS.reduce((acc, m) => {
-        acc[m.name] = tasks.filter((t) => t.assignedTo === m.name && !t.done).length;
-        return acc;
-      }, {});
-      avatarRow.innerHTML = MEMBERS.map(
-        (m) => `
-        <button class="avatar ${filter === m.name ? "active" : ""}" data-filter="${m.name}"
-          style="border-color:${m.color}; background:${filter === m.name ? m.color : "var(--card-bg)"}; view-transition-name: avatar-${m.name};">
-          <span class="avatar-initial" style="color:${filter === m.name ? "#fff" : m.color}">${m.name[0]}</span>
-          <span class="avatar-badge" style="background:${filter === m.name ? "#fff" : m.color}; color:${filter === m.name ? m.color : "#fff"};">${counts[m.name]}</span>
-        </button>`
-      ).join("");
+    const counts = MEMBERS.reduce((acc, m) => {
+      acc[m.name] = tasks.filter((t) => t.assignedTo === m.name && !t.done).length;
+      return acc;
+    }, {});
+    avatarRow.innerHTML = MEMBERS.map(
+      (m) => `
+      <button class="avatar ${filter === m.name ? "active" : ""}" data-filter="${m.name}"
+        style="border-color:${colorFor(m.name)}; background:${filter === m.name ? colorFor(m.name) : "var(--card-bg)"}; view-transition-name: avatar-${m.name};">
+        <span class="avatar-initial" style="color:${filter === m.name ? "#fff" : colorFor(m.name)}">${faceFor(m.name)}</span>
+        <span class="avatar-badge" style="background:${filter === m.name ? "#fff" : colorFor(m.name)}; color:${filter === m.name ? colorFor(m.name) : "#fff"};">${counts[m.name]}</span>
+      </button>`
+    ).join("");
 
-      document.querySelectorAll("[data-filter]").forEach((el) => {
-        el.onclick = () => {
-          const name = el.dataset.filter;
-          filter = filter === name ? "alle" : name;
-          updateWithTransition();
-        };
-      });
-    }
+    document.querySelectorAll("[data-filter]").forEach((el) => {
+      el.onclick = () => {
+        const name = el.dataset.filter;
+        filter = filter === name ? "alle" : name;
+        updateWithTransition();
+      };
+    });
   }
 
   // Update list-container (Liste or Uge)
-  const visible = myTasks.filter((t) => (filter === "alle" ? true : t.assignedTo === filter));
+  const visible = tasks.filter((t) => (filter === "alle" ? true : t.assignedTo === filter));
   const listVisible = visible
     .slice()
     .sort((a, b) => Number(a.done) - Number(b.done) || (b.ts || 0) - (a.ts || 0));
@@ -800,7 +801,7 @@ function openAddSheet() {
     const assignable = admin ? MEMBERS : MEMBERS.filter((m) => m.name === currentUser.name);
     host.querySelector("#addAssignRow").innerHTML = assignable.map(
       (m) => `<button class="assign-chip ${assignees.includes(m.name) ? "active" : ""}" data-assign="${m.name}"
-        style="background:${assignees.includes(m.name) ? m.color : "var(--bg-app)"}">${m.name}</button>`
+        style="background:${assignees.includes(m.name) ? colorFor(m.name) : "var(--bg-app)"}">${m.name}</button>`
     ).join("");
     host.querySelector("#addAssignHint").textContent = repeat && admin
       ? assignees.length > 1
@@ -917,37 +918,358 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
   }
 });
 
-// A small confetti burst from the checkbox when a task is completed.
-function confettiBurst(anchor, color) {
+// A confetti burst from the checkbox when a task is completed. `big` is the
+// kid-mode celebration cannon: more pieces, wider spread, longer fall.
+function confettiBurst(anchor, color, big = false) {
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const rect = anchor.getBoundingClientRect();
   const cx = rect.left + rect.width / 2;
   const cy = rect.top + rect.height / 2;
   const colors = [color, "#FFC53D", "#FF5E7A", "#38BDF8", "#4ADE80", "#A78BFA"];
-  for (let i = 0; i < 22; i++) {
+  const count = big ? 60 : 22;
+  for (let i = 0; i < count; i++) {
     const bit = document.createElement("span");
     bit.className = "confetti-bit";
-    const size = 5 + Math.random() * 6;
+    const size = 5 + Math.random() * (big ? 7 : 6);
     const h = Math.random() > 0.5 ? size : size * 0.4;
     bit.style.cssText = `left:${cx}px; top:${cy}px; width:${size}px; height:${h}px; background:${colors[i % colors.length]};`;
     document.body.appendChild(bit);
     const angle = Math.random() * Math.PI * 2;
-    const dist = 40 + Math.random() * 80;
+    const dist = (big ? 90 : 40) + Math.random() * (big ? 160 : 80);
     const dx = Math.cos(angle) * dist;
-    const dy = Math.sin(angle) * dist - 60;
+    const dy = Math.sin(angle) * dist - (big ? 120 : 60);
     bit
       .animate(
         [
           { transform: "translate(0, 0) rotate(0deg) scale(1)", opacity: 1 },
           {
-            transform: `translate(${dx}px, ${dy + 120}px) rotate(${Math.random() * 720 - 360}deg) scale(0.5)`,
+            transform: `translate(${dx}px, ${dy + (big ? 260 : 120)}px) rotate(${Math.random() * 720 - 360}deg) scale(0.5)`,
             opacity: 0,
           },
         ],
-        { duration: 700 + Math.random() * 500, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "forwards" }
+        {
+          duration: (big ? 1100 : 700) + Math.random() * 600,
+          easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+          fill: "forwards",
+        }
       )
       .onfinish = () => bit.remove();
   }
+}
+
+// ============================================================
+// Kid mode — the simplified interface for Anker & Edith.
+// Their own tasks only, big tap targets, no create/edit/delete.
+// ============================================================
+
+const KID_CHECK_SVG = `<svg width="22" height="22" viewBox="0 0 24 24"><path d="M5 13l5 5L20 7" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const LOOK_COLORS = ["#7C5CFF", "#FF5E7A", "#38BDF8", "#10B981", "#F97316", "#EF4444", "#14B8A6", "#D946EF"];
+const LOOK_FACES = ["😎", "🦄", "🐱", "🐶", "🦊", "🐼", "⚽", "🏀", "🎮", "🎸", "🚀"];
+
+// One flat list for the kid's day: overdue first, then today's (timed before
+// untimed), then "whenever" tasks — with everything done sunk to the bottom.
+function kidTodayTasks() {
+  const todayStr = ymd(new Date());
+  const mine = tasks.filter((t) => t.assignedTo === currentUser.name);
+  const overdue = mine
+    .filter((t) => t.due && t.due < todayStr && !t.done)
+    .sort((a, b) => (a.due < b.due ? -1 : 1));
+  const dueToday = mine.filter((t) => t.due === todayStr).sort(byTimeThenRecent);
+  const noDate = mine
+    .filter((t) => !t.due)
+    .sort((a, b) => Number(a.done) - Number(b.done) || (b.ts || 0) - (a.ts || 0));
+  const all = [...overdue, ...dueToday, ...noDate];
+  return [...all.filter((t) => !t.done), ...all.filter((t) => t.done)];
+}
+
+function kidCompletionsOn(dateStr) {
+  return completions.filter((c) => c.name === currentUser.name && c.date === dateStr);
+}
+
+function kidTaskCard(t, i) {
+  const todayStr = ymd(new Date());
+  const late = t.due && t.due < todayStr && !t.done;
+  return `
+    <div class="kid-task ${t.done ? "done" : ""}"
+      style="${kidAnimate ? `animation-delay:${0.2 + i * 0.07}s;` : ""} view-transition-name: task-${t.id};">
+      <span class="kid-task-emoji">${t.emoji || "📋"}</span>
+      <span class="kid-task-body">
+        <div class="kid-task-label">${escapeHtml(t.label)}</div>
+        <div class="kid-task-meta">
+          ${t.time ? `<span class="task-time ${t.alarm ? "has-alarm" : ""}">${t.alarm ? "🔔" : "🕐"} ${t.time}</span>` : ""}
+          ${t.points ? `<span class="task-points">⭐ ${t.points}</span>` : ""}
+          ${t.repeat ? `<span class="task-time">🔁 ${REPEAT_LABELS[t.repeat] || ""}</span>` : ""}
+          ${late ? `<span class="task-time">⏰ Fra tidligere</span>` : ""}
+        </div>
+      </span>
+      <button class="kid-check ${t.done ? "done" : ""}" data-kidtoggle="${t.id}">${t.done ? KID_CHECK_SVG : ""}</button>
+    </div>`;
+}
+
+// The week at a glance: one row per day, that day's task emojis, and a status.
+// Past days count via the completions log (recurring tasks roll forward, so
+// the task list alone can't say what got done yesterday).
+function kidWeekRows() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = ymd(today);
+  const start = startOfWeek(today);
+  const mine = tasks.filter((t) => t.assignedTo === currentUser.name);
+
+  let rows = "";
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(start, i);
+    const ds = ymd(d);
+    const isToday = ds === todayStr;
+    const dayTasks = mine.filter((t) => t.due === ds);
+    const open = dayTasks.filter((t) => !t.done).length;
+    const doneCount = kidCompletionsOn(ds).length;
+
+    let stateHtml = "";
+    if (ds < todayStr) {
+      if (open > 0) stateHtml = `<span class="kid-day-state late">${open} mangler</span>`;
+      else if (doneCount > 0) stateHtml = `<span class="kid-day-state">✓ Færdig</span>`;
+    } else if (isToday) {
+      const total = open + doneCount;
+      if (total === 0) stateHtml = "";
+      else if (open === 0) stateHtml = `<span class="kid-day-state">✓ Færdig</span>`;
+      else stateHtml = `<span class="kid-day-state pending">${doneCount}/${total}</span>`;
+    } else if (dayTasks.length > 0) {
+      stateHtml = `<span class="kid-day-state pending">${dayTasks.length}</span>`;
+    }
+
+    const emojis = dayTasks.map((t) => t.emoji || "🔹").join("");
+    const middle = emojis
+      ? `<span class="kid-day-emojis">${emojis}</span>`
+      : `<span class="kid-day-free">${doneCount > 0 ? "" : "Fri 🎈"}</span>`;
+
+    const delays = kidAnimate
+      ? `animation-delay:${0.05 * i}s;`
+      : "";
+    const stateDelayed = kidAnimate && stateHtml
+      ? stateHtml.replace('class="kid-day-state', `style="animation-delay:${0.3 + 0.08 * i}s" class="kid-day-state`)
+      : stateHtml;
+
+    rows += `
+      <div class="kid-day ${isToday ? "kid-today" : ""}" style="${delays}" ${isToday ? 'data-kidgotoday="1" title="Gå til i dag"' : ""}>
+        <span class="kid-day-name">${DAY_NAMES[i].slice(0, 3)}</span>
+        ${middle}
+        ${stateDelayed}
+      </div>`;
+  }
+  return rows;
+}
+
+function renderKidMode() {
+  const me = currentUser.name;
+  document.documentElement.style.setProperty("--kid-accent", colorFor(me));
+
+  const today = new Date();
+  const todayStr = ymd(today);
+  const dateLabel = `${DAY_NAMES[(today.getDay() + 6) % 7]} ${today.getDate()}. ${MONTHS[today.getMonth()]}`;
+
+  const list = kidTodayTasks();
+  // Progress counts completions, not just visible done-tasks: a completed
+  // recurring chore rolls its due date forward and leaves the list, but the
+  // completion log still remembers it was done today.
+  const doneToday = kidCompletionsOn(todayStr).length;
+  const open = list.filter((t) => !t.done).length;
+  const total = open + doneToday;
+  const pct = total ? Math.round((doneToday / total) * 100) : 0;
+  const weekStars = completions
+    .filter((c) => c.name === me)
+    .reduce((s, c) => s + (c.points || 0), 0);
+  const isDark = document.documentElement.classList.contains("dark");
+  const customized = !!(looks[me]?.face || looks[me]?.color);
+
+  app.innerHTML = `
+    <div class="${kidAnimate ? "kid-enter" : ""}">
+      <div class="kid-hello">
+        <button class="kid-face ${customized ? "customized" : ""}" id="kidFace" title="Vælg dit look">
+          <span>${faceFor(me)}</span><span class="kid-face-edit">✏️</span>
+        </button>
+        <span class="kid-hello-text">
+          <div class="kid-hi">Hej ${me}! <span class="kid-wave">👋</span></div>
+          <div class="kid-date">${dateLabel}</div>
+        </span>
+        <button class="theme-btn" id="themeBtn" title="Skift mellem lys og mørk">${isDark ? "☀️" : "🌙"}</button>
+        <button class="logout-btn" id="logoutBtn">Log ud</button>
+      </div>
+
+      <div class="kid-progress" style="${kidAnimate ? "animation-delay:0.08s;" : ""} view-transition-name: kid-progress;">
+        <div class="kid-progress-top">
+          <span class="kid-progress-label">Din dag</span>
+          <span class="kid-progress-count">${total === 0 ? "Fri i dag 🎈" : `⭐ ${doneToday} af ${total}`}</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+        <div class="kid-week-stars">🏆 Denne uge: ${weekStars} ${weekStars === 1 ? "stjerne" : "stjerner"}</div>
+      </div>
+
+      <div class="kid-tabs" style="${kidAnimate ? "animation-delay:0.15s;" : ""}">
+        <button class="kid-tab ${kidView === "idag" ? "active" : ""}" data-kidview="idag">☀️ I dag</button>
+        <button class="kid-tab ${kidView === "uge" ? "active" : ""}" data-kidview="uge">📅 Min uge</button>
+      </div>
+
+      ${
+        kidView === "idag"
+          ? list.length === 0
+            ? `<div class="empty" style="${kidAnimate ? "animation-delay:0.22s;" : ""}"><span class="empty-emoji">🎈</span>Ingen opgaver i dag – fri leg!</div>`
+            : list.map(kidTaskCard).join("")
+          : kidWeekRows()
+      }
+    </div>
+  `;
+  kidAnimate = false;
+
+  document.getElementById("logoutBtn").onclick = signOut;
+  document.getElementById("themeBtn").onclick = toggleTheme;
+  document.getElementById("kidFace").onclick = openLookSheet;
+
+  document.querySelectorAll("[data-kidview]").forEach((el) => {
+    el.onclick = () => {
+      if (kidView === el.dataset.kidview) return;
+      kidView = el.dataset.kidview;
+      kidAnimate = true;
+      updateWithTransition();
+    };
+  });
+
+  document.querySelectorAll("[data-kidtoggle]").forEach((el) => {
+    el.onclick = () => kidToggle(el);
+  });
+
+  const todayRow = document.querySelector("[data-kidgotoday]");
+  if (todayRow) {
+    todayRow.onclick = () => {
+      kidView = "idag";
+      kidAnimate = true;
+      updateWithTransition();
+    };
+  }
+}
+
+// Tap the big circle: optimistic flourish right away (pop, drawn check,
+// confetti), then the shared toggleDone writes the real state — including
+// rolling recurring chores forward and logging/removing the completion.
+function kidToggle(btn) {
+  const t = tasks.find((x) => x.id === btn.dataset.kidtoggle);
+  if (!t) return;
+  if (!t.done) {
+    const card = btn.closest(".kid-task");
+    btn.classList.add("done");
+    btn.innerHTML = KID_CHECK_SVG;
+    if (card) card.classList.add("pop");
+    confettiBurst(btn, colorFor(currentUser.name));
+    const openLeft = kidTodayTasks().filter((x) => !x.done).length;
+    if (openLeft === 1) setTimeout(kidCelebrate, 650); // that was the last one!
+  }
+  toggleDone(t.id);
+}
+
+// The payoff for finishing the day: trophy, twinkling stars, confetti cannons.
+function kidCelebrate() {
+  if (document.querySelector(".kid-celebrate")) return;
+  const el = document.createElement("div");
+  el.className = "kid-celebrate";
+  el.innerHTML = `
+    <div class="kid-celebrate-card">
+      <span class="kid-celebrate-trophy">🏆</span>
+      <div class="kid-celebrate-title">Alt klaret!</div>
+      <div class="kid-celebrate-sub">Sikke en sej dag, ${currentUser.name}!</div>
+      <div class="kid-celebrate-stars">
+        <span style="animation-delay:0.5s">⭐</span><span style="animation-delay:0.65s">⭐</span><span style="animation-delay:0.8s">⭐</span><span style="animation-delay:0.95s">⭐</span><span style="animation-delay:1.1s">⭐</span>
+      </div>
+    </div>`;
+  el.onclick = () => el.remove();
+  document.body.appendChild(el);
+  confettiBurst(el.querySelector(".kid-celebrate-trophy"), colorFor(currentUser.name), true);
+  setTimeout(() => {
+    const stars = el.querySelector(".kid-celebrate-stars");
+    if (stars) confettiBurst(stars, colorFor(currentUser.name), true);
+  }, 600);
+  setTimeout(() => el.remove(), 7000);
+}
+
+// "Vælg dit look": pick a face (emoji or your initial) and an accent color.
+// Saved per member in Firestore, so the look follows the kid across devices —
+// and their color takes over everywhere in the family's views too.
+async function saveLook(patch) {
+  try {
+    await setDoc(doc(membersCol, currentUser.name), patch, { merge: true });
+  } catch (e) {
+    console.error("Saving look failed:", e);
+    alert("Kunne ikke gemme dit look. Er du online?");
+  }
+}
+
+function openLookSheet() {
+  let host = document.getElementById("lookSheet");
+  if (!host) {
+    host = document.createElement("div");
+    host.id = "lookSheet";
+    host.style.cssText = "position:fixed; inset:0; z-index:1150;";
+    document.body.appendChild(host);
+  }
+  const me = currentUser.name;
+  const faces = [me[0], ...LOOK_FACES];
+
+  function close() {
+    host.remove();
+  }
+
+  function draw() {
+    const face = faceFor(me);
+    const color = colorFor(me);
+    host.innerHTML = `
+      <div class="modal-wrap">
+        <div class="modal-card">
+          <div class="modal-head">
+            <h2 class="modal-title">Vælg dit look</h2>
+            <button class="modal-close" data-close="1">✕</button>
+          </div>
+          <div class="kid-look-label">Din figur</div>
+          <div class="kid-emoji-grid">
+            ${faces
+              .map((f) => `<button class="kid-emoji-opt ${f === face ? "active" : ""}" data-face="${f}">${f}</button>`)
+              .join("")}
+          </div>
+          <div class="kid-look-label">Din farve</div>
+          <div class="kid-color-row">
+            ${LOOK_COLORS
+              .map((c) => `<button class="kid-color-dot ${c === color ? "active" : ""}" data-color="${c}" style="background:${c}"></button>`)
+              .join("")}
+          </div>
+          <div class="sheet-actions">
+            <button class="btn-primary" data-close="1">Færdig</button>
+          </div>
+        </div>
+      </div>`;
+
+    host.querySelectorAll("[data-face]").forEach((el) => {
+      el.onclick = () => {
+        // Optimistic: repaint immediately, then persist. The members snapshot
+        // confirms (or corrects) shortly after.
+        looks[me] = { ...looks[me], face: el.dataset.face };
+        saveLook({ face: el.dataset.face });
+        render();
+        draw();
+      };
+    });
+    host.querySelectorAll("[data-color]").forEach((el) => {
+      el.onclick = () => {
+        looks[me] = { ...looks[me], color: el.dataset.color };
+        saveLook({ color: el.dataset.color });
+        render();
+        draw();
+      };
+    });
+    host.querySelectorAll("[data-close]").forEach((el) => (el.onclick = close));
+    host.querySelector(".modal-wrap").onclick = (e) => {
+      if (e.target === e.currentTarget) close();
+    };
+  }
+
+  draw();
 }
 
 // Only touch the fields we mean to change (updateDoc, not a full setDoc
@@ -1010,13 +1332,8 @@ function showUndo(t) {
 }
 
 async function clearDone() {
-  // Kids can only clear their own completed tasks; parents clear everyone's.
-  const admin = isAdmin(currentUser);
-  const toRemove = tasks.filter(
-    (t) => t.done && (admin || t.assignedTo === currentUser.name)
-  );
-  if (toRemove.length === 0) return;
-  if (!confirm(admin ? "Fjern alle afkrydsede opgaver?" : "Fjern dine afkrydsede opgaver?")) return;
+  if (!confirm("Fjern alle afkrydsede opgaver?")) return;
+  const toRemove = tasks.filter((t) => t.done);
   await Promise.all(toRemove.map((t) => deleteDoc(doc(tasksCol, t.id))));
 }
 
@@ -1124,7 +1441,7 @@ function openEditSheet(t) {
     const shown = admin ? MEMBERS : MEMBERS.filter((m) => assignees.includes(m.name));
     host.querySelector("#editAssignRow").innerHTML = shown.map(
       (m) => `<button class="assign-chip ${assignees.includes(m.name) ? "active" : ""}" data-assign="${m.name}"
-        ${admin ? "" : "disabled"} style="background:${assignees.includes(m.name) ? m.color : "var(--bg-app)"}">${m.name}</button>`
+        ${admin ? "" : "disabled"} style="background:${assignees.includes(m.name) ? colorFor(m.name) : "var(--bg-app)"}">${m.name}</button>`
     ).join("");
     host.querySelector("#editAssignHint").textContent = repeat
       ? assignees.length > 1
@@ -1262,7 +1579,7 @@ function openResetPanel() {
                 return `
                   <div class="reset-row">
                     <span class="reset-name">
-                      <span class="user-dot" style="background:${m.color}"></span>${m.name}
+                      <span class="user-dot" style="background:${colorFor(m.name)}"></span>${m.name}
                     </span>
                     ${right}
                   </div>`;
@@ -1293,6 +1610,18 @@ try {
 
 // Gate the app behind the family login before subscribing to data.
 currentUser = await ensureAuth();
+
+// Live per-member looks (kid mode's "Vælg dit look"): colors and faces update
+// on every device the moment a kid changes theirs.
+onSnapshot(
+  membersCol,
+  (snap) => {
+    looks = {};
+    snap.forEach((d) => (looks[d.id] = d.data()));
+    updateWithTransition();
+  },
+  (err) => console.warn("Members sync error:", err)
+);
 
 // Real-time listener — every connected device updates instantly.
 const q = query(tasksCol, orderBy("ts", "desc"));

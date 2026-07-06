@@ -1588,3 +1588,473 @@ html.dark .repeat-chips::-webkit-scrollbar-thumb,
 html.dark .assign-row::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.12);
 }
+
+/* ============================================================
+   Kid mode — the simplified interface Anker & Edith get.
+   --kid-accent is set at runtime from the member's chosen color.
+   Entrance animations only run under .kid-enter (first paint and
+   tab switches); live data re-renders stay calm. The check-pop
+   only plays on the actual tap (.kid-task.pop), never on re-render.
+   ============================================================ */
+:root { --kid-accent: #7C5CFF; }
+
+.kid-hello {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 18px;
+}
+.kid-face {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border-radius: 50%;
+  border: 3px solid var(--kid-accent);
+  background: color-mix(in srgb, var(--kid-accent) 12%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Outfit', sans-serif;
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--kid-accent);
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: var(--transition-spring);
+}
+.kid-face:hover { transform: scale(1.08); }
+.kid-face-edit {
+  position: absolute;
+  bottom: -4px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--card-bg);
+  box-shadow: var(--card-shadow-sm);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition-smooth);
+}
+/* Once the look has been customised the hint shrinks out of the way —
+   it only needs to teach the tap the first time. */
+.kid-face.customized .kid-face-edit {
+  width: 14px;
+  height: 14px;
+  font-size: 7px;
+  bottom: -3px;
+  right: -5px;
+  opacity: 0.8;
+}
+.kid-hello-text { flex: 1; min-width: 0; }
+.kid-hi {
+  font-family: 'Outfit', sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.kid-wave {
+  display: inline-block;
+  animation: kidWave 2.2s ease-in-out infinite;
+  transform-origin: 70% 70%;
+}
+@keyframes kidWave {
+  0%, 55%, 100% { transform: rotate(0deg); }
+  10% { transform: rotate(22deg); }
+  20% { transform: rotate(-12deg); }
+  30% { transform: rotate(18deg); }
+  40% { transform: rotate(-6deg); }
+}
+.kid-date {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: capitalize;
+  margin-top: 2px;
+}
+.kid-hello .theme-btn { margin-left: auto; flex-shrink: 0; }
+.kid-hello .logout-btn { flex-shrink: 0; padding: 6px 10px; }
+
+/* Big friendly progress card with a shimmering fill */
+.kid-progress {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--card-shadow-sm);
+  padding: 16px;
+  margin-bottom: 18px;
+}
+.kid-progress-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 10px;
+}
+.kid-progress-label {
+  font-family: 'Outfit', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+}
+.kid-progress-count {
+  font-family: 'Outfit', sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-secondary);
+}
+.kid-progress .progress-track { height: 22px; }
+.kid-progress .progress-fill {
+  position: relative;
+  overflow: hidden;
+}
+.kid-progress .progress-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.5) 50%, transparent 70%);
+  animation: kidShine 2.4s ease-in-out infinite;
+}
+@keyframes kidShine {
+  from { transform: translateX(-100%); }
+  60%, to { transform: translateX(100%); }
+}
+.kid-week-stars {
+  margin-top: 10px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+/* Two big tabs */
+.kid-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.kid-tab {
+  flex: 1;
+  border: none;
+  padding: 14px 0;
+  border-radius: 999px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 16.5px;
+  font-weight: 800;
+  color: var(--text-secondary);
+  background: rgba(28, 25, 23, 0.06);
+  cursor: pointer;
+  transition: var(--transition-spring);
+}
+html.dark .kid-tab { background: rgba(255, 255, 255, 0.08); }
+.kid-tab.active {
+  background: var(--accent-grad);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(255, 94, 122, 0.35);
+  transform: scale(1.03);
+}
+
+/* Big task cards */
+.kid-task {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-left: 6px solid var(--kid-accent);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--card-shadow-sm);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.kid-task-emoji {
+  width: 58px;
+  height: 58px;
+  border-radius: var(--border-radius-md);
+  background: color-mix(in srgb, var(--kid-accent) 8%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34px;
+  flex-shrink: 0;
+}
+.kid-task-body { flex: 1; min-width: 0; }
+.kid-task-label {
+  font-family: 'Outfit', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+.kid-task-meta {
+  display: flex;
+  gap: 6px;
+  margin-top: 5px;
+  flex-wrap: wrap;
+}
+.kid-check {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 3px solid rgba(28, 25, 23, 0.12);
+  background: transparent;
+  flex-shrink: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: var(--transition-spring);
+}
+html.dark .kid-check { border-color: rgba(255, 255, 255, 0.18); }
+.kid-check:hover { transform: scale(1.1); border-color: #10B981; }
+.kid-task.done { opacity: 0.55; }
+.kid-task.done .kid-task-label {
+  text-decoration: line-through;
+  color: var(--text-secondary);
+}
+.kid-check.done {
+  border: none;
+  background: #10B981;
+}
+/* The tap flourish: pop, draw the check, emoji party, card wiggle */
+.kid-task.pop {
+  animation: kidTaskPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes kidTaskPop {
+  0% { transform: scale(1) rotate(0deg); }
+  30% { transform: scale(1.04) rotate(1.2deg); }
+  60% { transform: scale(0.97) rotate(-1deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+.kid-task.pop .kid-task-emoji {
+  animation: kidEmojiParty 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes kidEmojiParty {
+  0% { transform: scale(1) rotate(0deg); }
+  35% { transform: scale(1.35) rotate(-10deg); }
+  70% { transform: scale(1.15) rotate(8deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+.kid-task.pop .kid-check.done {
+  animation: kidCheckPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes kidCheckPop {
+  0% { transform: scale(0.4); }
+  60% { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+.kid-task.pop .kid-check.done svg path {
+  stroke-dasharray: 26;
+  stroke-dashoffset: 26;
+  animation: kidDraw 0.35s ease-out 0.15s forwards;
+}
+@keyframes kidDraw { to { stroke-dashoffset: 0; } }
+
+/* Week overview rows */
+.kid-day {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--border-radius-md);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+}
+.kid-day.kid-today {
+  border: 2px solid var(--kid-accent);
+  cursor: pointer;
+  transition: var(--transition-spring);
+  animation: kidTodayGlow 2.6s ease-in-out 0.8s infinite;
+}
+.kid-day.kid-today:hover { transform: scale(1.02); }
+.kid-day.kid-today:active { transform: scale(0.97); }
+@keyframes kidTodayGlow {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  50% { box-shadow: 0 0 18px 2px color-mix(in srgb, var(--kid-accent) 35%, transparent); }
+}
+.kid-day-name {
+  font-family: 'Outfit', sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  width: 52px;
+  flex-shrink: 0;
+}
+.kid-day.kid-today .kid-day-name { color: var(--kid-accent); }
+.kid-day-emojis {
+  flex: 1;
+  font-size: 24px;
+  letter-spacing: 4px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.kid-day-free {
+  flex: 1;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+.kid-day-state {
+  font-size: 15px;
+  font-weight: 800;
+  color: #10B981;
+  flex-shrink: 0;
+}
+.kid-day-state.pending { color: var(--text-tertiary); }
+.kid-day-state.late { color: #EF4444; }
+.kid-day.kid-today .kid-day-state.pending { color: var(--kid-accent); }
+
+/* Entrance animations — only under .kid-enter (first paint / tab switch) */
+.kid-enter .kid-hello,
+.kid-enter .kid-progress,
+.kid-enter .kid-tabs,
+.kid-enter .kid-task,
+.kid-enter .kid-day,
+.kid-enter .empty {
+  animation: kidCardIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+@keyframes kidCardIn {
+  from { opacity: 0; transform: translateY(26px) scale(0.94); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.kid-enter .kid-day.kid-today {
+  animation: kidCardIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) backwards,
+    kidTodayGlow 2.6s ease-in-out 0.8s infinite;
+}
+.kid-enter .kid-day-state {
+  animation: kidStatePop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+@keyframes kidStatePop {
+  from { transform: scale(0); }
+  60% { transform: scale(1.3); }
+  to { transform: scale(1); }
+}
+
+/* Full-screen celebration when the day is done */
+.kid-celebrate {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(28, 25, 23, 0.45);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: kidFadeIn 0.3s ease;
+  cursor: pointer;
+}
+@keyframes kidFadeIn { from { opacity: 0; } to { opacity: 1; } }
+.kid-celebrate-card {
+  background: var(--card-bg);
+  border-radius: var(--border-radius-xl);
+  box-shadow: var(--card-shadow-lg);
+  padding: 36px 40px;
+  text-align: center;
+  animation: kidCelebrateIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes kidCelebrateIn {
+  from { opacity: 0; transform: scale(0.5) translateY(40px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.kid-celebrate-trophy {
+  font-size: 74px;
+  line-height: 1;
+  display: inline-block;
+  animation: kidTrophy 1.1s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+}
+@keyframes kidTrophy {
+  0%, 100% { transform: translateY(0) rotate(-4deg); }
+  50% { transform: translateY(-16px) rotate(4deg); }
+}
+.kid-celebrate-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 28px;
+  font-weight: 800;
+  margin: 14px 0 4px;
+}
+.kid-celebrate-sub {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.kid-celebrate-stars {
+  margin-top: 14px;
+  font-size: 24px;
+  letter-spacing: 6px;
+}
+.kid-celebrate-stars span {
+  display: inline-block;
+  animation: kidStarTwinkle 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+@keyframes kidStarTwinkle {
+  from { transform: scale(0) rotate(-90deg); }
+  70% { transform: scale(1.4) rotate(10deg); }
+  to { transform: scale(1) rotate(0deg); }
+}
+
+/* "Vælg dit look" picker */
+.kid-look-label {
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-secondary);
+  margin: 16px 0 8px;
+}
+.kid-emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+}
+.kid-emoji-opt {
+  border: 2px solid transparent;
+  background: var(--bg-app);
+  border-radius: var(--border-radius-sm);
+  font-size: 24px;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 800;
+  color: var(--kid-accent);
+  padding: 7px 0;
+  cursor: pointer;
+  line-height: 1.2;
+  transition: var(--transition-spring);
+}
+.kid-emoji-opt:hover { transform: scale(1.12); }
+.kid-emoji-opt.active {
+  border-color: var(--kid-accent);
+  background: color-mix(in srgb, var(--kid-accent) 10%, transparent);
+}
+.kid-color-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.kid-color-dot {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: var(--transition-spring);
+}
+.kid-color-dot:hover { transform: scale(1.15); }
+.kid-color-dot.active {
+  border-color: var(--text-primary);
+  transform: scale(1.12);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kid-wave, .kid-progress .progress-fill::after, .kid-task, .kid-day,
+  .kid-day.kid-today, .kid-celebrate-trophy, .kid-celebrate-stars span,
+  .kid-enter .kid-hello, .kid-enter .kid-progress, .kid-enter .kid-tabs,
+  .kid-enter .kid-task, .kid-enter .kid-day, .kid-enter .kid-day-state,
+  .kid-enter .empty {
+    animation: none !important;
+  }
+}

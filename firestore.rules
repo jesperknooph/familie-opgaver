@@ -67,10 +67,18 @@ service cloud.firestore {
       allow delete: if request.auth != null;
     }
 
-    // --- members (one doc per person, holds the hashed PIN) ---
+    // --- members (one doc per person: hashed PIN + chosen look) ---
+    // `face` (an emoji) and `color` (hex) are the kid-mode "Vælg dit look"
+    // customisation; all fields optional so a look can be saved before a PIN
+    // exists and vice versa (writes use merge).
     function isValidMember(data) {
-      return data.keys().hasOnly(['pinHash'])
-        && (data.pinHash == null || (data.pinHash is string && data.pinHash.size() <= 64));
+      return data.keys().hasOnly(['pinHash', 'face', 'color'])
+        && (!('pinHash' in data) || data.pinHash == null
+            || (data.pinHash is string && data.pinHash.size() <= 64))
+        && (!('face' in data) || data.face == null
+            || (data.face is string && data.face.size() > 0 && data.face.size() <= 16))
+        && (!('color' in data) || data.color == null
+            || (data.color is string && data.color.matches('^#[0-9A-Fa-f]{6}$')));
     }
 
     match /members/{name} {
