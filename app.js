@@ -6,6 +6,7 @@ import {
   updateDoc,
   deleteDoc,
   deleteField,
+  getDocs,
   onSnapshot,
   query,
   orderBy,
@@ -19,6 +20,7 @@ const MONTHS = ["jan", "feb", "mar", "apr", "maj", "jun", "jul", "aug", "sep", "
 
 const tasksCol = collection(db, "tasks");
 const completionsCol = collection(db, "completions");
+const payoutsCol = collection(db, "payouts");
 const membersCol = collection(db, "members");
 
 let tasks = [];
@@ -568,12 +570,15 @@ function render() {
         <button class="theme-btn" id="themeBtn" title="Skift mellem lys og mørk">${
           document.documentElement.classList.contains("dark") ? "☀️" : "🌙"
         }</button>
+        ${isAdmin(currentUser) ? `<button class="admin-btn" id="payoutBtn">💰 Lommepenge</button>` : ""}
         ${isAdmin(currentUser) ? `<button class="admin-btn" id="resetPinBtn">Nulstil PIN</button>` : ""}
         <button class="logout-btn" id="logoutBtn">Log ud</button>
       </span>
     `;
     document.getElementById("logoutBtn").onclick = signOut;
     document.getElementById("themeBtn").onclick = toggleTheme;
+    const payoutBtn = document.getElementById("payoutBtn");
+    if (payoutBtn) payoutBtn.onclick = openPayoutSheet;
     const resetPinBtn = document.getElementById("resetPinBtn");
     if (resetPinBtn) resetPinBtn.onclick = openResetPanel;
   }
@@ -1783,6 +1788,197 @@ function openResetPanel() {
   }
 
   draw();
+}
+
+// Parents-only allowance ledger. A child's balance is derived, never stored:
+// "til gode" = all-time kr earned (summed from the durable completions log)
+// minus all-time kr paid out (the payouts collection). "Betal ud" writes an
+// immutable payout, which settles the balance while both underlying records
+// survive — so the history is preserved even after paying. Loaded on demand
+// (family-scale data), not part of the always-on listeners.
+async function openPayoutSheet() {
+  let host = document.getElementById("payoutSheet");
+  if (!host) {
+    host = document.createElement("div");
+    host.id = "payoutSheet";
+    document.body.appendChild(host);
+  }
+
+  let earned = {}; // name -> kr earned all-time
+  let payouts = []; // [{ id, name, amount, date, ts }]
+  let loading = true;
+  let error = false;
+  let payingFor = null; // name whose inline amount input is open
+  const busy = {}; // name -> true while a write is in flight
+
+  function close() {
+    host.remove();
+  }
+
+  async function load() {
+    loading = true;
+    error = false;
+    draw();
+    try {
+      const [compSnap, paySnap] = await Promise.all([
+        getDocs(completionsCol),
+        getDocs(payoutsCol),
+      ]);
+      earned = {};
+      MEMBERS.forEach((m) => (earned[m.name] = 0));
+      compSnap.forEach((d) => {
+        const c = d.data();
+        if (c.name in earned) earned[c.name] += c.money || 0;
+      });
+      payouts = paySnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    } catch (e) {
+      console.error("Loading payouts failed (are the new rules published?):", e);
+      error = true;
+    }
+    loading = false;
+    draw();
+  }
+
+  function paidFor(name) {
+    return payouts
+      .filter((p) => p.name === name)
+      .reduce((s, p) => s + (p.amount || 0), 0);
+  }
+
+  async function pay(name, amount) {
+    if (busy[name] || !(amount > 0)) return;
+    busy[name] = true;
+    payingFor = null;
+    draw();
+    try {
+      await setDoc(doc(payoutsCol, uid()), {
+        name,
+        amount,
+        date: ymd(new Date()),
+        ts: Date.now(),
+      });
+    } catch (e) {
+      console.error("Payout failed:", e);
+      alert("Kunne ikke gemme udbetalingen. Er du online?");
+    }
+    busy[name] = false;
+    await load();
+  }
+
+  async function undo(id) {
+    if (!confirm("Fjern denne udbetaling? Beløbet lægges tilbage til gode.")) return;
+    try {
+      await deleteDoc(doc(payoutsCol, id));
+    } catch (e) {
+      console.error("Undo payout failed:", e);
+      alert("Kunne ikke fjerne udbetalingen. Er du online?");
+    }
+    await load();
+  }
+
+  function fmtDate(ds) {
+    const d = parseYmd(ds);
+    return `${d.getDate()}. ${MONTHS[d.getMonth()]}`;
+  }
+
+  function draw() {
+    // Only members with earned or paid activity (the kids, in practice).
+    const active = MEMBERS.filter(
+      (m) => (earned[m.name] || 0) > 0 || paidFor(m.name) > 0
+    );
+
+    let body;
+    if (loading) {
+      body = `<p class="modal-sub">Henter…</p>`;
+    } else if (error) {
+      body = `<p class="modal-sub">Kunne ikke hente lommepenge. Er de nye regler udgivet i Firebase?</p>`;
+    } else if (active.length === 0) {
+      body = `<div class="payout-empty"><span class="payout-empty-emoji">💰</span>Ingen optjente lommepenge endnu.<br>Sæt et kr-beløb på en opgave, så begynder det at tælle.</div>`;
+    } else {
+      body = active
+        .map((m) => {
+          const name = m.name;
+          const e = earned[name] || 0;
+          const p = paidFor(name);
+          const bal = e - p;
+          const hist = payouts
+            .filter((x) => x.name === name)
+            .sort((a, b) => (b.ts || 0) - (a.ts || 0));
+          const isPaying = payingFor === name;
+          return `
+            <div class="payout-card" style="border-left-color:${colorFor(name)}">
+              <div class="payout-top">
+                <span class="payout-name" style="color:${colorFor(name)}">${name}</span>
+                <span class="payout-balance">${bal} kr <span class="payout-balance-label">til gode</span></span>
+              </div>
+              <div class="payout-sub">Optjent i alt ${e} kr · Udbetalt ${p} kr</div>
+              ${
+                isPaying
+                  ? `<div class="payout-pay-row">
+                       <input type="number" min="1" max="100000" step="1" inputmode="numeric" class="input payout-amount" id="payAmt-${name}" value="${bal}" />
+                       <span class="money-suffix">kr</span>
+                       <button class="btn-primary payout-confirm" data-payconfirm="${name}" ${busy[name] ? "disabled" : ""}>${busy[name] ? "…" : "Bekræft"}</button>
+                       <button class="btn-ghost payout-cancel" data-paycancel="${name}">Annullér</button>
+                     </div>`
+                  : `<button class="payout-btn" data-pay="${name}" ${bal <= 0 || busy[name] ? "disabled" : ""}>Betal ud</button>`
+              }
+              ${
+                hist.length
+                  ? `<div class="payout-hist">${hist
+                      .map(
+                        (x) =>
+                          `<div class="payout-hist-row"><span class="payout-hist-date">${fmtDate(x.date)}</span><span class="payout-hist-amt">${x.amount} kr</span><button class="payout-hist-del" data-undo="${x.id}" title="Fjern udbetaling">✕</button></div>`
+                      )
+                      .join("")}</div>`
+                  : ""
+              }
+            </div>`;
+        })
+        .join("");
+    }
+
+    host.innerHTML = `
+      <div class="modal-wrap">
+        <div class="modal-card">
+          <div class="modal-head">
+            <h2 class="modal-title">💰 Lommepenge</h2>
+            <button class="modal-close" data-close="1">✕</button>
+          </div>
+          <p class="modal-sub">Til gode = optjent minus udbetalt. Udbetalinger gemmes som historik.</p>
+          <div class="payout-list">${body}</div>
+        </div>
+      </div>`;
+
+    host.querySelector("[data-close]").onclick = close;
+    host.querySelector(".modal-wrap").onclick = (ev) => {
+      if (ev.target === ev.currentTarget) close();
+    };
+    host.querySelectorAll("[data-pay]").forEach((el) => {
+      el.onclick = () => {
+        payingFor = el.dataset.pay;
+        draw();
+      };
+    });
+    host.querySelectorAll("[data-paycancel]").forEach((el) => {
+      el.onclick = () => {
+        payingFor = null;
+        draw();
+      };
+    });
+    host.querySelectorAll("[data-payconfirm]").forEach((el) => {
+      el.onclick = () => {
+        const name = el.dataset.payconfirm;
+        const amt = Math.round(Number(host.querySelector(`#payAmt-${name}`).value));
+        if (!(amt > 0)) return alert("Skriv et beløb større end 0.");
+        pay(name, amt);
+      };
+    });
+    host.querySelectorAll("[data-undo]").forEach((el) => {
+      el.onclick = () => undo(el.dataset.undo);
+    });
+  }
+
+  load();
 }
 
 // Get an anonymous Firebase auth token before any Firestore access (the login

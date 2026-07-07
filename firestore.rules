@@ -72,6 +72,24 @@ service cloud.firestore {
       allow delete: if request.auth != null;
     }
 
+    // --- payouts (allowance settlements; running balance = earned − paid) ---
+    // One doc per payout event, immutable history. Delete is allowed so a
+    // mistaken payout can be undone (which restores the child's balance).
+    function isValidPayout(data) {
+      return data.keys().hasOnly(['name', 'amount', 'date', 'ts'])
+        && data.name in memberNames()
+        && data.amount is int && data.amount > 0 && data.amount <= 100000
+        && data.date is string && data.date.size() == 10
+        && data.ts is number;
+    }
+
+    match /payouts/{payoutId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && isValidPayout(request.resource.data);
+      allow update: if false;
+      allow delete: if request.auth != null;
+    }
+
     // --- members (one doc per person: hashed PIN + chosen look) ---
     // `face` (an emoji) and `color` (hex) are the kid-mode "Vælg dit look"
     // customisation; all fields optional so a look can be saved before a PIN

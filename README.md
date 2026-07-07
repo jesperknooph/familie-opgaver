@@ -17,7 +17,9 @@ no build step.
   tally per member shows above the add card (resets Monday)
 - **Allowance (kr)**: parents can put a Danish-krone value on a task; earned kr
   total per child each week (also resets Monday) and show in both the parent
-  tally and each kid's own view
+  tally and each kid's own view. A parents-only **💰 Lommepenge** ledger tracks a
+  running "til gode" balance per child (all-time earned − paid) with a **Betal ud**
+  action that records each payout as durable history
 - Deleting shows a brief "Fortryd" undo snackbar
 - PIN login per person; "remember me" per device
 - Parent admins (Jesper, Line) can reset anyone's PIN
@@ -47,6 +49,10 @@ no build step.
   - `completions` — one doc per task per day (id `taskId:date`):
     `{ name, date, label, emoji, points, money, ts }` — drives the weekly points
     and kr (allowance) tallies
+  - `payouts` — one doc per allowance settlement: `{ name, amount, date, ts }`.
+    A child's "til gode" balance is derived, never stored: all-time kr earned
+    (summed from `completions.money`) minus all-time kr paid out (summed from
+    `payouts.amount`). Payouts are immutable history (deletable to undo)
   - `members` — one doc per person (`{ pinHash }`); PINs are hashed, not plaintext
 - Auth: **Anonymous Authentication** — each device silently gets a token so the
   security rules can require an authenticated request. (This is not per-person
