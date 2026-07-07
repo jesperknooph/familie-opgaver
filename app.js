@@ -1118,9 +1118,12 @@ function renderKidMode() {
           : kidWeekRows()
       }
     </div>
+
+    <button class="kid-fab" id="kidAddBtn" title="Tilføj opgave" aria-label="Tilføj opgave">+</button>
   `;
   kidAnimate = false;
 
+  document.getElementById("kidAddBtn").onclick = openKidAddSheet;
   document.getElementById("logoutBtn").onclick = signOut;
   document.getElementById("themeBtn").onclick = toggleTheme;
   document.getElementById("kidFace").onclick = openLookSheet;
@@ -1188,6 +1191,150 @@ function kidCelebrate() {
     if (stars) confettiBurst(stars, colorFor(currentUser.name), true);
   }, 600);
   setTimeout(() => el.remove(), 7000);
+}
+
+// Kids add their own tasks with a stripped-down sheet: tap an emoji, type what
+// to do, and pick when — I dag, I morgen, or a specific day (native date
+// picker). No points, repeat, alarm or assignee choice: a kid's task is always
+// for today/tomorrow/that day and always assigned to themselves. Those richer
+// options stay parent-only in the full add sheet.
+const KID_EMOJI_QUICKPICKS = ["📋", "🧸", "📚", "🦷", "🚿", "🧹", "🐕", "🎵", "⚽", "🎮", "🎨", "🍽️"];
+
+function openKidAddSheet() {
+  let host = document.getElementById("kidAddSheet");
+  if (!host) {
+    host = document.createElement("div");
+    host.id = "kidAddSheet";
+    host.style.cssText = "position:fixed; inset:0; z-index:1150;";
+    document.body.appendChild(host);
+  }
+
+  let emoji = "📋";
+  let when = "today"; // "today" | "tomorrow" | "date"
+  let pickedDate = ""; // ymd, only set once "Vælg dag" picks a day
+  let busy = false;
+
+  function close() {
+    host.remove();
+  }
+
+  // Resolve the chosen "when" to a due date (ymd). A specific day that wasn't
+  // actually picked falls back to today so a task always lands somewhere sane.
+  function dueFor() {
+    if (when === "tomorrow") return ymd(addDays(new Date(), 1));
+    if (when === "date" && pickedDate) return pickedDate;
+    return ymd(new Date());
+  }
+
+  host.innerHTML = `
+    <div class="modal-wrap">
+      <div class="modal-card kid-add-card">
+        <div class="modal-head">
+          <h2 class="modal-title">Ny opgave ✨</h2>
+          <button class="modal-close" data-close="1">✕</button>
+        </div>
+
+        <div class="kid-add-emojis">
+          ${KID_EMOJI_QUICKPICKS.map(
+            (e) => `<button class="kid-emoji-pick ${emoji === e ? "active" : ""}" data-emoji="${e}">${e}</button>`
+          ).join("")}
+        </div>
+
+        <input class="input kid-add-input" id="kidAddLabel" placeholder="Hvad skal du lave?" />
+
+        <div class="kid-add-when-label">Hvornår?</div>
+        <div class="kid-when-chips">
+          <button class="kid-when-chip active" data-when="today">☀️ I dag</button>
+          <button class="kid-when-chip" data-when="tomorrow">🌙 I morgen</button>
+          <button class="kid-when-chip" data-when="date" id="kidWhenDate">📅 Vælg dag</button>
+        </div>
+        <input type="date" id="kidAddDate" class="kid-hidden-date" />
+
+        <div class="sheet-actions">
+          <button class="btn-ghost" data-close="1">Annullér</button>
+          <button class="btn-primary" id="kidAddSave">Tilføj ⭐</button>
+        </div>
+      </div>
+    </div>`;
+
+  host.querySelectorAll("[data-close]").forEach((el) => (el.onclick = close));
+  host.querySelector(".modal-wrap").onclick = (e) => {
+    if (e.target === e.currentTarget) close();
+  };
+
+  host.querySelectorAll("[data-emoji]").forEach((el) => {
+    el.onclick = () => {
+      emoji = el.dataset.emoji;
+      host.querySelectorAll("[data-emoji]").forEach((b) => b.classList.toggle("active", b === el));
+    };
+  });
+
+  const dateInput = host.querySelector("#kidAddDate");
+  const dateChip = host.querySelector("#kidWhenDate");
+
+  function selectWhen(val, chip) {
+    when = val;
+    host.querySelectorAll("[data-when]").forEach((b) => b.classList.toggle("active", b === chip));
+  }
+
+  host.querySelectorAll("[data-when]").forEach((el) => {
+    el.onclick = () => {
+      if (el.dataset.when === "date") {
+        // Open the native date picker as part of this tap (a user gesture, so
+        // showPicker is allowed); fall back to focusing the input if unsupported.
+        try {
+          dateInput.showPicker();
+        } catch {
+          dateInput.focus();
+        }
+        return;
+      }
+      selectWhen(el.dataset.when, el);
+    };
+  });
+
+  // Only commit to the "specific day" choice once a date is actually picked.
+  dateInput.onchange = () => {
+    if (!dateInput.value) return;
+    pickedDate = dateInput.value;
+    const d = parseYmd(pickedDate);
+    dateChip.textContent = `📅 ${d.getDate()}. ${MONTHS[d.getMonth()]}`;
+    selectWhen("date", dateChip);
+  };
+
+  async function save() {
+    if (busy) return;
+    const label = host.querySelector("#kidAddLabel").value.trim();
+    if (!label) return alert("Skriv hvad du skal lave 🙂");
+    const data = {
+      label,
+      emoji: emoji || null,
+      assignedTo: currentUser.name,
+      done: false,
+      due: dueFor(),
+      time: null,
+      alarm: false,
+      repeat: null,
+      ts: Date.now(),
+    };
+    busy = true;
+    const saveBtn = host.querySelector("#kidAddSave");
+    saveBtn.textContent = "…";
+    try {
+      await setDoc(doc(tasksCol, uid()), data);
+      close();
+    } catch (e) {
+      console.error("Kid adding task failed:", e);
+      busy = false;
+      saveBtn.textContent = "Tilføj ⭐";
+      alert("Kunne ikke gemme opgaven. Er du online?");
+    }
+  }
+
+  host.querySelector("#kidAddSave").onclick = save;
+  host.querySelector("#kidAddLabel").onkeydown = (e) => {
+    if (e.key === "Enter") save();
+  };
 }
 
 // "Vælg dit look": pick a face (emoji or your initial) and an accent color.

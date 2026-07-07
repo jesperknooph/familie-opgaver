@@ -1934,6 +1934,99 @@ html.dark .kid-check { border-color: rgba(255, 255, 255, 0.18); }
   to { transform: scale(1); }
 }
 
+/* Floating "+" button to add a task — kid mode's only create affordance */
+.kid-fab {
+  position: fixed;
+  right: max(20px, env(safe-area-inset-right));
+  bottom: max(22px, env(safe-area-inset-bottom));
+  z-index: 500;
+  width: 64px;
+  height: 64px;
+  border: none;
+  border-radius: 50%;
+  background: var(--kid-accent);
+  color: #fff;
+  font-size: 38px;
+  font-weight: 400;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--kid-accent) 45%, transparent);
+  transition: var(--transition-spring);
+}
+.kid-fab:hover { transform: scale(1.08); }
+.kid-fab:active { transform: scale(0.94); }
+
+/* Simplified add sheet for kids */
+.kid-add-card .kid-add-emojis {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  margin: 18px 0 14px;
+}
+.kid-emoji-pick {
+  aspect-ratio: 1;
+  border: 2px solid var(--card-border);
+  border-radius: var(--border-radius-md);
+  background: var(--bg-app);
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition-spring);
+}
+.kid-emoji-pick:hover { transform: scale(1.1); }
+.kid-emoji-pick.active {
+  border-color: var(--kid-accent);
+  background: color-mix(in srgb, var(--kid-accent) 14%, transparent);
+  transform: scale(1.06);
+}
+.kid-add-input {
+  width: 100%;
+  font-family: 'Outfit', sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+}
+.kid-add-when-label {
+  font-family: 'Outfit', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin: 18px 0 8px;
+}
+.kid-when-chips {
+  display: flex;
+  gap: 8px;
+}
+.kid-when-chip {
+  flex: 1;
+  border: 2px solid var(--card-border);
+  border-radius: 999px;
+  padding: 12px 6px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: var(--bg-app);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: var(--transition-spring);
+}
+.kid-when-chip:hover { transform: translateY(-1px); }
+.kid-when-chip.active {
+  border-color: var(--kid-accent);
+  background: color-mix(in srgb, var(--kid-accent) 16%, transparent);
+  color: var(--text-primary);
+}
+/* The native date input is only a picker trigger, never shown inline */
+.kid-hidden-date {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* Full-screen celebration when the day is done */
 .kid-celebrate {
   position: fixed;
