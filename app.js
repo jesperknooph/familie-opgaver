@@ -121,6 +121,7 @@ async function logCompletion(t) {
       label: t.label,
       emoji: t.emoji || null,
       points: t.points || 0,
+      money: t.money || 0,
       ts: Date.now(),
     });
   } catch (e) {
@@ -258,6 +259,7 @@ function taskRow(t) {
         }${rotationBit}</span>
       </div>
       ${t.points ? `<span class="task-points">⭐ ${t.points}</span>` : ""}
+      ${t.money ? `<span class="task-money">💰 ${t.money} kr</span>` : ""}
       ${t.time ? `<span class="task-time ${t.alarm ? "has-alarm" : ""}">${t.alarm ? "🔔" : "🕐"} ${t.time}</span>` : ""}
       <button class="delete-button" data-delete="${t.id}">${icon("trash", "#D6CFE0", 14)}</button>
     </div>`;
@@ -485,27 +487,42 @@ function renderShell() {
   });
 }
 
-// This week's star tally per family member. Hidden until points are in use.
+// This week's star + kr tally per family member. Hidden until points or money
+// are in use anywhere.
 function renderStars() {
   const row = document.getElementById("starsRow");
   if (!row) return;
-  const inUse = completions.length > 0 || tasks.some((t) => t.points);
+  const inUse =
+    completions.length > 0 || tasks.some((t) => t.points || t.money);
   if (!inUse) {
     row.innerHTML = "";
     row.classList.remove("show");
     return;
   }
   const weekPoints = {};
-  MEMBERS.forEach((m) => (weekPoints[m.name] = 0));
-  completions.forEach((c) => {
-    if (c.name in weekPoints) weekPoints[c.name] += c.points || 0;
+  const weekMoney = {};
+  MEMBERS.forEach((m) => {
+    weekPoints[m.name] = 0;
+    weekMoney[m.name] = 0;
   });
+  completions.forEach((c) => {
+    if (c.name in weekPoints) {
+      weekPoints[c.name] += c.points || 0;
+      weekMoney[c.name] += c.money || 0;
+    }
+  });
+  // Only show the kr figure once money is actually in play, so families who
+  // only use stars don't suddenly see "0 kr" everywhere.
+  const moneyInUse =
+    tasks.some((t) => t.money) || completions.some((c) => c.money);
   row.classList.add("show");
   row.innerHTML =
     `<span class="stars-label">⭐ Denne uge</span>` +
     MEMBERS.map(
       (m) =>
-        `<span class="stars-chip" style="color:${colorFor(m.name)}">${m.name} <strong>${weekPoints[m.name]}</strong></span>`
+        `<span class="stars-chip" style="color:${colorFor(m.name)}">${m.name} <strong>${weekPoints[m.name]}</strong>${
+          moneyInUse ? `<span class="stars-money">💰 ${weekMoney[m.name]} kr</span>` : ""
+        }</span>`
     ).join("");
 }
 
@@ -710,6 +727,13 @@ function openAddSheet() {
 
         <div class="repeat-row" id="addRepeatRow"></div>
         <div class="repeat-row" id="addPointsRow"></div>
+        <div class="repeat-row money-row">
+          <span class="repeat-row-label">Kr</span>
+          <div class="money-field">
+            <input type="number" min="0" max="1000" step="1" inputmode="numeric" class="input money-input" id="addMoneyInput" placeholder="0" />
+            <span class="money-suffix">kr</span>
+          </div>
+        </div>
         <div class="assign-hint" id="addAssignHint"></div>
         <div class="assign-row edit-assign-row" id="addAssignRow"></div>
 
@@ -754,6 +778,7 @@ function openAddSheet() {
         host.querySelector("#addEmoji").value = tpl.emoji;
         host.querySelector("#addLabel").value = tpl.label;
         points = tpl.points || null;
+        host.querySelector("#addMoneyInput").value = tpl.money || "";
         drawChips();
         showTpl = false; // collapse the gallery once a template is chosen
         drawTemplates();
@@ -850,6 +875,7 @@ function openAddSheet() {
     const label = host.querySelector("#addLabel").value.trim();
     if (!label) return alert("Opgaven skal have en tekst.");
     const emoji = host.querySelector("#addEmoji").value.trim();
+    const money = Number(host.querySelector("#addMoneyInput").value) || null;
     // A recurring task (or a one-off alarm) needs a date to anchor it — default to today.
     const needsAnchor = repeat || (alarm && time);
     const finalDue = needsAnchor && !due ? ymd(new Date()) : due || null;
@@ -868,6 +894,7 @@ function openAddSheet() {
     // documents stay valid even under the previous published rules.
     if (repeat && assignees.length > 1) data.rotation = [...assignees];
     if (points) data.points = points;
+    if (money) data.money = money;
     busy = true;
     const saveBtn = host.querySelector("#addSave");
     saveBtn.textContent = "…";
@@ -998,6 +1025,7 @@ function kidTaskCard(t, i) {
         <div class="kid-task-meta">
           ${t.time ? `<span class="task-time ${t.alarm ? "has-alarm" : ""}">${t.alarm ? "🔔" : "🕐"} ${t.time}</span>` : ""}
           ${t.points ? `<span class="task-points">⭐ ${t.points}</span>` : ""}
+          ${t.money ? `<span class="task-money">💰 ${t.money} kr</span>` : ""}
           ${t.repeat ? `<span class="task-time">🔁 ${REPEAT_LABELS[t.repeat] || ""}</span>` : ""}
           ${late ? `<span class="task-time">⏰ Fra tidligere</span>` : ""}
         </div>
@@ -1076,9 +1104,10 @@ function renderKidMode() {
   const open = list.filter((t) => !t.done).length;
   const total = open + doneToday;
   const pct = total ? Math.round((doneToday / total) * 100) : 0;
-  const weekStars = completions
-    .filter((c) => c.name === me)
-    .reduce((s, c) => s + (c.points || 0), 0);
+  const myCompletions = completions.filter((c) => c.name === me);
+  const weekStars = myCompletions.reduce((s, c) => s + (c.points || 0), 0);
+  const weekMoney = myCompletions.reduce((s, c) => s + (c.money || 0), 0);
+  const moneyInUse = tasks.some((t) => t.money) || completions.some((c) => c.money);
   const isDark = document.documentElement.classList.contains("dark");
   const customized = !!(looks[me]?.face || looks[me]?.color);
 
@@ -1103,6 +1132,7 @@ function renderKidMode() {
         </div>
         <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
         <div class="kid-week-stars">🏆 Denne uge: ${weekStars} ${weekStars === 1 ? "stjerne" : "stjerner"}</div>
+        ${moneyInUse ? `<div class="kid-week-money">💰 Du har tjent ${weekMoney} kr denne uge</div>` : ""}
       </div>
 
       <div class="kid-tabs" style="${kidAnimate ? "animation-delay:0.15s;" : ""}">
@@ -1532,6 +1562,13 @@ function openEditSheet(t) {
 
         <div class="repeat-row" id="editRepeatRow"></div>
         <div class="repeat-row" id="editPointsRow"></div>
+        <div class="repeat-row money-row">
+          <span class="repeat-row-label">Kr</span>
+          <div class="money-field">
+            <input type="number" min="0" max="1000" step="1" inputmode="numeric" class="input money-input" id="editMoneyInput" placeholder="0" value="${t.money || ""}" />
+            <span class="money-suffix">kr</span>
+          </div>
+        </div>
         <div class="assign-hint" id="editAssignHint"></div>
         <div class="assign-row edit-assign-row" id="editAssignRow"></div>
 
@@ -1643,6 +1680,7 @@ function openEditSheet(t) {
     const label = host.querySelector("#editLabel").value.trim();
     if (!label) return alert("Opgaven skal have en tekst.");
     const emoji = host.querySelector("#editEmoji").value.trim();
+    const money = Number(host.querySelector("#editMoneyInput").value) || null;
     // Same anchoring rule as the add sheet: repeats and alarms need a date.
     const needsAnchor = repeat || (alarm && time);
     const finalDue = needsAnchor && !due ? ymd(new Date()) : due || null;
@@ -1661,6 +1699,7 @@ function openEditSheet(t) {
         repeat: repeat,
         rotation: rotation || deleteField(),
         points: points || deleteField(),
+        money: money || deleteField(),
       });
       close();
     } catch (e) {

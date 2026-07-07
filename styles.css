@@ -14,6 +14,7 @@
   --accent: #FF7A59;
   --accent-grad: linear-gradient(135deg, #FFB03A 0%, #FF5E7A 100%);
   --gold-grad: linear-gradient(135deg, #FFE08A 0%, #FFC53D 100%);
+  --money-grad: linear-gradient(135deg, #6EE7B7 0%, #10B981 100%);
 
   --border-radius-sm: 10px;
   --border-radius-md: 16px;
@@ -309,6 +310,26 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   padding: 5px 11px;
   white-space: nowrap;
   box-shadow: 0 1px 3px rgba(255, 176, 58, 0.35);
+}
+
+/* Kr (allowance) chip on a task row — green to set it apart from the gold stars */
+.task-money {
+  flex-shrink: 0;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #054F3B;
+  background: var(--money-grad);
+  border-radius: 999px;
+  padding: 5px 11px;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.35);
+}
+
+/* The kr figure appended to a weekly tally chip */
+.stars-money {
+  margin-left: 6px;
+  font-weight: 800;
+  color: #10B981;
 }
 
 /* Hint under the repeat/assign rows ("vælg flere, så skiftes de") */
@@ -963,6 +984,23 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   font-weight: 700;
   color: var(--text-secondary);
   flex-shrink: 0;
+}
+
+/* Kr amount input (add/edit sheets) */
+.money-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.money-input {
+  width: 88px;
+  text-align: right;
+  font-weight: 700;
+}
+.money-suffix {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-secondary);
 }
 .repeat-chips {
   display: flex;
@@ -1727,6 +1765,12 @@ html.dark .assign-row::-webkit-scrollbar-thumb {
   font-size: 13.5px;
   font-weight: 700;
   color: var(--text-secondary);
+}
+.kid-week-money {
+  margin-top: 4px;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #10B981;
 }
 
 /* Two big tabs */

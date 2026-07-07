@@ -15,6 +15,9 @@ no build step.
   assignee each time it's completed ("skiftes")
 - **Points**: tasks can carry a star value; completions are logged and a weekly
   tally per member shows above the add card (resets Monday)
+- **Allowance (kr)**: parents can put a Danish-krone value on a task; earned kr
+  total per child each week (also resets Monday) and show in both the parent
+  tally and each kid's own view
 - Deleting shows a brief "Fortryd" undo snackbar
 - PIN login per person; "remember me" per device
 - Parent admins (Jesper, Line) can reset anyone's PIN
@@ -38,10 +41,12 @@ no build step.
 - Project: `familie-opgaver-bf88a` (Spark / free tier)
 - Firestore collections:
   - `tasks` — `{ label, emoji, assignedTo, done, due, time, alarm, repeat,
-    rotation, points, ts }` (`rotation` = list of names a recurring chore
-    alternates between; `points` = star value)
+    rotation, points, money, ts }` (`rotation` = list of names a recurring chore
+    alternates between; `points` = star value; `money` = kr allowance value,
+    whole kroner)
   - `completions` — one doc per task per day (id `taskId:date`):
-    `{ name, date, label, emoji, points, ts }` — drives the weekly points tally
+    `{ name, date, label, emoji, points, money, ts }` — drives the weekly points
+    and kr (allowance) tallies
   - `members` — one doc per person (`{ pinHash }`); PINs are hashed, not plaintext
 - Auth: **Anonymous Authentication** — each device silently gets a token so the
   security rules can require an authenticated request. (This is not per-person

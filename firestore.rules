@@ -23,7 +23,7 @@ service cloud.firestore {
 
     // --- tasks ---
     function isValidTask(data) {
-      return data.keys().hasOnly(['label', 'emoji', 'assignedTo', 'done', 'due', 'time', 'alarm', 'repeat', 'rotation', 'points', 'ts'])
+      return data.keys().hasOnly(['label', 'emoji', 'assignedTo', 'done', 'due', 'time', 'alarm', 'repeat', 'rotation', 'points', 'money', 'ts'])
         && data.label is string && data.label.size() > 0 && data.label.size() <= 500
         && (!('emoji' in data) || data.emoji == null || (data.emoji is string && data.emoji.size() <= 16))
         && data.assignedTo in memberNames()
@@ -39,6 +39,9 @@ service cloud.firestore {
                 && data.rotation.hasOnly(memberNames()) && data.assignedTo in data.rotation))
         && (!('points' in data) || data.points == null
             || (data.points is int && data.points >= 0 && data.points <= 100))
+        // money: kr allowance value; whole kroner only
+        && (!('money' in data) || data.money == null
+            || (data.money is int && data.money >= 0 && data.money <= 1000))
         && data.ts is number;
     }
 
@@ -52,12 +55,14 @@ service cloud.firestore {
     // The append-only-ish log behind the weekly points tally. Delete is allowed
     // so un-checking a task the same day can take its stars back.
     function isValidCompletion(data) {
-      return data.keys().hasOnly(['name', 'date', 'label', 'emoji', 'points', 'ts'])
+      return data.keys().hasOnly(['name', 'date', 'label', 'emoji', 'points', 'money', 'ts'])
         && data.name in memberNames()
         && data.date is string && data.date.size() == 10
         && data.label is string && data.label.size() > 0 && data.label.size() <= 500
         && (!('emoji' in data) || data.emoji == null || (data.emoji is string && data.emoji.size() <= 16))
         && data.points is int && data.points >= 0 && data.points <= 100
+        && (!('money' in data) || data.money == null
+            || (data.money is int && data.money >= 0 && data.money <= 1000))
         && data.ts is number;
     }
 
