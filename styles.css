@@ -194,11 +194,13 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
 }
 
 /* --- User profile bar --- */
-.user-bar { 
-  display: flex; 
-  align-items: center; 
-  justify-content: space-between; 
-  margin-bottom: 20px; 
+.user-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  margin-bottom: 20px;
   padding: 12px 14px;
   background: var(--card-bg);
   border-radius: var(--border-radius-md);
@@ -240,6 +242,8 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
 .user-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
 }
 .admin-btn {
