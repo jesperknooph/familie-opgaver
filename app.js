@@ -31,6 +31,11 @@ let currentUser = null;
 let looks = {}; // per-member custom look from Firestore: name -> { face, color }
 let kidView = "idag"; // kid mode: "idag" | "uge"
 let kidAnimate = true; // entrance animations on first paint & tab switch only
+// Kid mode piggy bank ("i sparegrisen"): balance = past earnings + this week's
+// live kr − payouts. Both stay null until loaded, which hides the line.
+let kidEarnedPast = null; // kr earned before this week (fetched, not live)
+let kidPaidOut = null; // all-time kr paid out to me (live payouts listener)
+let unsubKidPayouts = null;
 
 // Pending reminder timers, keyed by task id, so we can cancel/reschedule cleanly.
 const reminderTimers = new Map();
@@ -217,6 +222,7 @@ function scheduleMidnightRefresh() {
   setTimeout(() => {
     scheduleReminders();
     subscribeCompletions(); // Monday: the points week window rolls over
+    loadKidMoney(); // …and the piggy bank's past/this-week boundary moves too
     updateWithTransition();
     scheduleMidnightRefresh();
   }, next.getTime() - now.getTime());
@@ -998,6 +1004,40 @@ const KID_CHECK_SVG = `<svg width="22" height="22" viewBox="0 0 24 24"><path d="
 const LOOK_COLORS = ["#7C5CFF", "#FF5E7A", "#38BDF8", "#10B981", "#F97316", "#EF4444", "#14B8A6", "#D946EF"];
 const LOOK_FACES = ["😎", "🦄", "🐱", "🐶", "🦊", "🐼", "⚽", "🏀", "🎮", "🎸", "🚀"];
 
+// Load the piggy bank inputs. Past earnings change only at the Monday rollover
+// (scheduleMidnightRefresh re-runs this); payouts stream live, so the balance
+// drops the moment a parent hits "Betal ud". Failures are non-fatal: a value
+// that never loads just keeps the piggy bank line hidden.
+async function loadKidMoney() {
+  if (!currentUser || isAdmin(currentUser)) return;
+  const me = currentUser.name;
+  const weekStart = ymd(startOfWeek(new Date()));
+  try {
+    // Same query as the payout sheet (money-carrying completions only);
+    // name + date are filtered client-side to avoid a composite index.
+    const snap = await getDocs(query(completionsCol, where("money", ">", 0)));
+    let sum = 0;
+    snap.forEach((d) => {
+      const c = d.data();
+      if (c.name === me && c.date < weekStart) sum += c.money || 0;
+    });
+    kidEarnedPast = sum;
+    updateWithTransition();
+  } catch (e) {
+    console.warn("Loading past earnings failed (piggy bank hidden):", e);
+  }
+  if (!unsubKidPayouts) {
+    unsubKidPayouts = onSnapshot(
+      query(payoutsCol, where("name", "==", me)),
+      (snap) => {
+        kidPaidOut = snap.docs.reduce((s, d) => s + (d.data().amount || 0), 0);
+        updateWithTransition();
+      },
+      (err) => console.warn("Payouts sync error (piggy bank hidden):", err)
+    );
+  }
+}
+
 // One flat list for the kid's day: overdue first, then today's (timed before
 // untimed), then "whenever" tasks — with everything done sunk to the bottom.
 function kidTodayTasks() {
@@ -1113,6 +1153,11 @@ function renderKidMode() {
   const weekStars = myCompletions.reduce((s, c) => s + (c.points || 0), 0);
   const weekMoney = myCompletions.reduce((s, c) => s + (c.money || 0), 0);
   const moneyInUse = tasks.some((t) => t.money) || completions.some((c) => c.money);
+  // Piggy bank balance; null (and hidden) until both parts have loaded.
+  const kidBalance =
+    kidEarnedPast !== null && kidPaidOut !== null
+      ? kidEarnedPast + weekMoney - kidPaidOut
+      : null;
   const isDark = document.documentElement.classList.contains("dark");
   const customized = !!(looks[me]?.face || looks[me]?.color);
 
@@ -1138,6 +1183,7 @@ function renderKidMode() {
         <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
         <div class="kid-week-stars">🏆 Denne uge: ${weekStars} ${weekStars === 1 ? "stjerne" : "stjerner"}</div>
         ${moneyInUse ? `<div class="kid-week-money">💰 Du har tjent ${weekMoney} kr denne uge</div>` : ""}
+        ${moneyInUse && kidBalance !== null ? `<div class="kid-piggy">🐷 Du har ${kidBalance} kr i sparegrisen</div>` : ""}
       </div>
 
       <div class="kid-tabs" style="${kidAnimate ? "animation-delay:0.15s;" : ""}">
@@ -1805,10 +1851,13 @@ async function openPayoutSheet() {
   }
 
   let earned = {}; // name -> kr earned all-time
+  let earnings = []; // money-carrying completions: [{ name, date, label, emoji, money, ts }]
   let payouts = []; // [{ id, name, amount, date, ts }]
   let loading = true;
   let error = false;
   let payingFor = null; // name whose inline amount input is open
+  const histOpen = {}; // name -> true once "vis alle" expands the payout history
+  const earnOpen = {}; // name -> true once "vis alle" expands the earnings
   const busy = {}; // name -> true while a write is in flight
 
   function close() {
@@ -1820,15 +1869,21 @@ async function openPayoutSheet() {
     error = false;
     draw();
     try {
+      // Most completions carry no kr (star-only or plain), so only fetch the
+      // ones that count toward the balance — the collection grows forever.
       const [compSnap, paySnap] = await Promise.all([
-        getDocs(completionsCol),
+        getDocs(query(completionsCol, where("money", ">", 0))),
         getDocs(payoutsCol),
       ]);
       earned = {};
+      earnings = [];
       MEMBERS.forEach((m) => (earned[m.name] = 0));
       compSnap.forEach((d) => {
         const c = d.data();
-        if (c.name in earned) earned[c.name] += c.money || 0;
+        if (c.name in earned) {
+          earned[c.name] += c.money || 0;
+          earnings.push(c);
+        }
       });
       payouts = paySnap.docs.map((d) => ({ id: d.id, ...d.data() }));
     } catch (e) {
@@ -1904,6 +1959,15 @@ async function openPayoutSheet() {
           const hist = payouts
             .filter((x) => x.name === name)
             .sort((a, b) => (b.ts || 0) - (a.ts || 0));
+          // Newest 5 payouts by default; "vis alle" unfolds the rest.
+          const histShown = histOpen[name] ? hist : hist.slice(0, 5);
+          const histHidden = hist.length - histShown.length;
+          // Same pattern for earnings: what the "Optjent i alt" figure is made of.
+          const earns = earnings
+            .filter((x) => x.name === name)
+            .sort((a, b) => (b.ts || 0) - (a.ts || 0));
+          const earnsShown = earnOpen[name] ? earns : earns.slice(0, 5);
+          const earnsHidden = earns.length - earnsShown.length;
           const isPaying = payingFor === name;
           return `
             <div class="payout-card" style="border-left-color:${colorFor(name)}">
@@ -1915,7 +1979,7 @@ async function openPayoutSheet() {
               ${
                 isPaying
                   ? `<div class="payout-pay-row">
-                       <input type="number" min="1" max="100000" step="1" inputmode="numeric" class="input payout-amount" id="payAmt-${name}" value="${bal}" />
+                       <input type="number" min="1" max="100000" step="1" inputmode="numeric" class="input payout-amount" value="${bal}" />
                        <span class="money-suffix">kr</span>
                        <button class="btn-primary payout-confirm" data-payconfirm="${name}" ${busy[name] ? "disabled" : ""}>${busy[name] ? "…" : "Bekræft"}</button>
                        <button class="btn-ghost payout-cancel" data-paycancel="${name}">Annullér</button>
@@ -1923,13 +1987,31 @@ async function openPayoutSheet() {
                   : `<button class="payout-btn" data-pay="${name}" ${bal <= 0 || busy[name] ? "disabled" : ""}>Betal ud</button>`
               }
               ${
+                earns.length
+                  ? `<div class="payout-hist"><div class="payout-hist-label">Optjent</div>${earnsShown
+                      .map(
+                        (x) =>
+                          `<div class="payout-hist-row"><span class="payout-earn-label">${x.emoji ? x.emoji + " " : ""}${escapeHtml(x.label || "")}</span><span class="payout-hist-date">${fmtDate(x.date)}</span><span class="payout-earn-amt">+${x.money} kr</span></div>`
+                      )
+                      .join("")}${
+                      earnsHidden > 0
+                        ? `<button class="payout-hist-more" data-earnmore="${name}">Vis alle (${earns.length})</button>`
+                        : ""
+                    }</div>`
+                  : ""
+              }
+              ${
                 hist.length
-                  ? `<div class="payout-hist">${hist
+                  ? `<div class="payout-hist"><div class="payout-hist-label">Udbetalt</div>${histShown
                       .map(
                         (x) =>
                           `<div class="payout-hist-row"><span class="payout-hist-date">${fmtDate(x.date)}</span><span class="payout-hist-amt">${x.amount} kr</span><button class="payout-hist-del" data-undo="${x.id}" title="Fjern udbetaling">✕</button></div>`
                       )
-                      .join("")}</div>`
+                      .join("")}${
+                      histHidden > 0
+                        ? `<button class="payout-hist-more" data-histmore="${name}">Vis alle (${hist.length})</button>`
+                        : ""
+                    }</div>`
                   : ""
               }
             </div>`;
@@ -1968,13 +2050,27 @@ async function openPayoutSheet() {
     host.querySelectorAll("[data-payconfirm]").forEach((el) => {
       el.onclick = () => {
         const name = el.dataset.payconfirm;
-        const amt = Math.round(Number(host.querySelector(`#payAmt-${name}`).value));
+        // Only one inline pay row exists at a time (payingFor), so the class
+        // lookup is unambiguous — and member names never have to be valid ids.
+        const amt = Math.round(Number(host.querySelector(".payout-amount").value));
         if (!(amt > 0)) return alert("Skriv et beløb større end 0.");
         pay(name, amt);
       };
     });
     host.querySelectorAll("[data-undo]").forEach((el) => {
       el.onclick = () => undo(el.dataset.undo);
+    });
+    host.querySelectorAll("[data-histmore]").forEach((el) => {
+      el.onclick = () => {
+        histOpen[el.dataset.histmore] = true;
+        draw();
+      };
+    });
+    host.querySelectorAll("[data-earnmore]").forEach((el) => {
+      el.onclick = () => {
+        earnOpen[el.dataset.earnmore] = true;
+        draw();
+      };
     });
   }
 
@@ -2024,4 +2120,5 @@ onSnapshot(
 
 render();
 subscribeCompletions();
+loadKidMoney(); // kid mode only; a no-op for parents
 scheduleMidnightRefresh();

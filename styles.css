@@ -656,6 +656,33 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   line-height: 1;
 }
 .payout-hist-del:hover { color: #991B1B; }
+.payout-hist-label {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+  margin-bottom: 2px;
+}
+.payout-earn-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.payout-earn-label + .payout-hist-date { flex: none; }
+.payout-earn-amt { font-weight: 800; color: #10B981; }
+.payout-hist-more {
+  align-self: flex-start;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 0 0;
+}
+.payout-hist-more:hover { color: var(--text-secondary); }
 .payout-empty {
   text-align: center;
   font-size: 14px;
@@ -1894,6 +1921,14 @@ html.dark .assign-row::-webkit-scrollbar-thumb {
   font-size: 13.5px;
   font-weight: 800;
   color: #10B981;
+}
+.kid-piggy {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--card-border);
+  font-size: 14.5px;
+  font-weight: 800;
+  color: var(--text-primary);
 }
 
 /* Two big tabs */
