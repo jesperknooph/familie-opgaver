@@ -284,7 +284,7 @@ function taskRow(t) {
       : "";
   return `
     <div class="task-row ${t.done ? "done" : ""}" style="border-left-color:${colorFor(t.assignedTo)}; view-transition-name: task-${t.id};">
-      <button class="check-button" data-toggle="${t.id}">
+      <button class="check-button" data-toggle="${t.id}" aria-label="${t.done ? "Fjern flueben" : "Kryds af"}">
         ${t.done ? icon("check", colorFor(t.assignedTo)) : icon("circle", "#D6CFE0")}
       </button>
       ${emojiTile}
@@ -297,7 +297,7 @@ function taskRow(t) {
       ${SHOW_STARS && t.points ? `<span class="task-points">⭐ ${t.points}</span>` : ""}
       ${t.money ? `<span class="task-money">💰 ${t.money} kr</span>` : ""}
       ${t.time ? `<span class="task-time ${t.alarm ? "has-alarm" : ""}">${t.alarm ? "🔔" : "🕐"} ${t.time}</span>` : ""}
-      <button class="delete-button" data-delete="${t.id}">${icon("trash", "#D6CFE0", 14)}</button>
+      <button class="delete-button" data-delete="${t.id}" aria-label="Slet opgave">${icon("trash", "#D6CFE0", 14)}</button>
     </div>`;
 }
 
@@ -365,7 +365,7 @@ function todaySection(visible) {
         totalCount
           ? `<div class="today-progress ${pct === 100 ? "complete" : ""}">
               <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
-              <span class="progress-count">${pct === 100 ? "🏆" : "⭐"} ${doneCount}/${totalCount}</span>
+              <span class="progress-count">${pct === 100 ? "🏆" : SHOW_STARS ? "⭐" : "✅"} ${doneCount}/${totalCount}</span>
             </div>`
           : ""
       }
@@ -436,12 +436,12 @@ function weekSection(visible) {
   return `
     <section class="week">
       <div class="week-nav">
-        <button class="week-nav-btn" data-week="-1">${icon("chevL", "#6B6478", 18)}</button>
+        <button class="week-nav-btn" data-week="-1" aria-label="Forrige uge">${icon("chevL", "#6B6478", 18)}</button>
         <button class="week-title" id="weekToday">
           <span class="week-num">Uge ${isoWeek(start)}</span>
           <span class="week-range">${rangeLabel}${weekOffset !== 0 ? " · tilbage til i dag" : ""}</span>
         </button>
-        <button class="week-nav-btn" data-week="1">${icon("chevR", "#6B6478", 18)}</button>
+        <button class="week-nav-btn" data-week="1" aria-label="Næste uge">${icon("chevR", "#6B6478", 18)}</button>
       </div>
 
       ${
@@ -752,7 +752,7 @@ function openAddSheet() {
       <div class="modal-card edit-card">
         <div class="modal-head">
           <h2 class="modal-title">Ny opgave</h2>
-          <button class="modal-close" data-close="1">✕</button>
+          <button class="modal-close" data-close="1" aria-label="Luk">✕</button>
         </div>
 
         <button class="template-toggle" id="addTplToggle"></button>
@@ -764,10 +764,14 @@ function openAddSheet() {
         </div>
 
         <div class="add-meta">
-          <span class="date-field-label">Forfald</span>
-          <input type="date" class="date-input" id="addDue" />
-          <span class="date-field-label">Kl.</span>
-          <input type="time" class="date-input time-input" id="addTime" />
+          <span class="meta-group">
+            <span class="date-field-label">Forfald</span>
+            <input type="date" class="date-input" id="addDue" />
+          </span>
+          <span class="meta-group">
+            <span class="date-field-label">Kl.</span>
+            <input type="time" class="date-input time-input" id="addTime" />
+          </span>
           <button class="alarm-toggle" id="addAlarm"></button>
         </div>
 
@@ -1114,7 +1118,7 @@ function kidTaskCard(t, i) {
           ${late ? `<span class="task-time">⏰ Fra tidligere</span>` : ""}
         </div>
       </span>
-      <button class="kid-check ${t.done ? "done" : ""}" data-kidtoggle="${t.id}">${t.done ? KID_CHECK_SVG : ""}</button>
+      <button class="kid-check ${t.done ? "done" : ""}" data-kidtoggle="${t.id}" aria-label="${t.done ? "Fjern flueben" : "Kryds af"}">${t.done ? KID_CHECK_SVG : ""}</button>
     </div>`;
 }
 
@@ -1210,7 +1214,7 @@ function renderKidMode() {
           <div class="kid-hi">Hej ${me}! <span class="kid-wave">👋</span></div>
           <div class="kid-date">${dateLabel}</div>
         </span>
-        <button class="theme-btn" id="themeBtn" title="Skift mellem lys og mørk">${isDark ? "☀️" : "🌙"}</button>
+        <button class="theme-btn" id="themeBtn" title="Skift mellem lys og mørk" aria-label="Skift mellem lys og mørk">${isDark ? "☀️" : "🌙"}</button>
         <button class="logout-btn" id="logoutBtn">Log ud</button>
       </div>
 
@@ -1351,7 +1355,7 @@ function openKidAddSheet() {
       <div class="modal-card kid-add-card">
         <div class="modal-head">
           <h2 class="modal-title">Ny opgave ✨</h2>
-          <button class="modal-close" data-close="1">✕</button>
+          <button class="modal-close" data-close="1" aria-label="Luk">✕</button>
         </div>
 
         <div class="kid-add-emojis">
@@ -1372,7 +1376,7 @@ function openKidAddSheet() {
 
         <div class="sheet-actions">
           <button class="btn-ghost" data-close="1">Annullér</button>
-          <button class="btn-primary" id="kidAddSave">Tilføj ⭐</button>
+          <button class="btn-primary" id="kidAddSave">Tilføj ✨</button>
         </div>
       </div>
     </div>`;
@@ -1446,7 +1450,7 @@ function openKidAddSheet() {
     } catch (e) {
       console.error("Kid adding task failed:", e);
       busy = false;
-      saveBtn.textContent = "Tilføj ⭐";
+      saveBtn.textContent = "Tilføj ✨";
       alert("Kunne ikke gemme opgaven. Er du online?");
     }
   }
@@ -1492,7 +1496,7 @@ function openLookSheet() {
         <div class="modal-card">
           <div class="modal-head">
             <h2 class="modal-title">Vælg dit look</h2>
-            <button class="modal-close" data-close="1">✕</button>
+            <button class="modal-close" data-close="1" aria-label="Luk">✕</button>
           </div>
           <div class="kid-look-label">Din figur</div>
           <div class="kid-emoji-grid">
@@ -1659,7 +1663,7 @@ function openEditSheet(t) {
       <div class="modal-card edit-card">
         <div class="modal-head">
           <h2 class="modal-title">Ret opgave</h2>
-          <button class="modal-close" data-close="1">✕</button>
+          <button class="modal-close" data-close="1" aria-label="Luk">✕</button>
         </div>
 
         <div class="label-row edit-label-row">
@@ -1668,10 +1672,14 @@ function openEditSheet(t) {
         </div>
 
         <div class="add-meta">
-          <span class="date-field-label">Forfald</span>
-          <input type="date" class="date-input" id="editDue" value="${due}" />
-          <span class="date-field-label">Kl.</span>
-          <input type="time" class="date-input time-input" id="editTime" value="${time}" />
+          <span class="meta-group">
+            <span class="date-field-label">Forfald</span>
+            <input type="date" class="date-input" id="editDue" value="${due}" />
+          </span>
+          <span class="meta-group">
+            <span class="date-field-label">Kl.</span>
+            <input type="time" class="date-input time-input" id="editTime" value="${time}" />
+          </span>
           <button class="alarm-toggle" id="editAlarm"></button>
         </div>
 
@@ -1852,7 +1860,7 @@ function openSettingsSheet() {
         <div class="modal-card">
           <div class="modal-head">
             <h2 class="modal-title">Indstillinger</h2>
-            <button class="modal-close" data-close="1">✕</button>
+            <button class="modal-close" data-close="1" aria-label="Luk">✕</button>
           </div>
           <div class="settings-list">
             <button class="settings-row" id="setTheme">${dark ? "☀️ Skift til lyst tema" : "🌙 Skift til mørkt tema"}</button>
@@ -1915,7 +1923,7 @@ function openResetPanel() {
         <div class="modal-card">
           <div class="modal-head">
             <h2 class="modal-title">Nulstil PIN-kode</h2>
-            <button class="modal-close" data-close="1">✕</button>
+            <button class="modal-close" data-close="1" aria-label="Luk">✕</button>
           </div>
           <p class="modal-sub">Vælg hvem der skal vælge en ny PIN ved næste login.</p>
           <div class="reset-list">
@@ -2123,7 +2131,7 @@ async function openPayoutSheet() {
                   ? `<div class="payout-hist"><div class="payout-hist-label">Udbetalt</div>${histShown
                       .map(
                         (x) =>
-                          `<div class="payout-hist-row"><span class="payout-hist-date">${fmtDate(x.date)}</span><span class="payout-hist-amt">${x.amount} kr</span><button class="payout-hist-del" data-undo="${x.id}" title="Fjern udbetaling">✕</button></div>`
+                          `<div class="payout-hist-row"><span class="payout-hist-date">${fmtDate(x.date)}</span><span class="payout-hist-amt">${x.amount} kr</span><button class="payout-hist-del" data-undo="${x.id}" title="Fjern udbetaling" aria-label="Fjern udbetaling">✕</button></div>`
                       )
                       .join("")}${
                       histHidden > 0
@@ -2142,7 +2150,7 @@ async function openPayoutSheet() {
         <div class="modal-card">
           <div class="modal-head">
             <h2 class="modal-title">💰 Lommepenge</h2>
-            <button class="modal-close" data-close="1">✕</button>
+            <button class="modal-close" data-close="1" aria-label="Luk">✕</button>
           </div>
           <p class="modal-sub">Til gode = optjent minus udbetalt. Udbetalinger gemmes som historik.</p>
           <div class="payout-list">${body}</div>

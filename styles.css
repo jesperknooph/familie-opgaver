@@ -665,7 +665,8 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   color: var(--text-tertiary);
   font-size: 12px;
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 8px 10px; /* finger-sized hit area for the small ✕ */
+  margin: -6px -8px;
   line-height: 1;
 }
 .payout-hist-del:hover { color: #991B1B; }
@@ -1084,6 +1085,12 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   margin-bottom: 12px;
   flex-wrap: wrap;
 }
+/* Keep each label glued to its input when the row wraps on small screens. */
+.meta-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 .time-input {
   min-width: 96px;
 }
@@ -1383,14 +1390,15 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   background: #FEF3C7;
 }
 
-.delete-button { 
-  border: none; 
-  background: transparent; 
-  color: var(--text-tertiary); 
-  display: flex; 
-  cursor: pointer; 
-  flex-shrink: 0; 
-  padding: 6px;
+.delete-button {
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  display: flex;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 10px; /* generous hit area around the small trash icon */
+  margin: -4px; /* …without growing the row visually */
   border-radius: 50%;
   transition: var(--transition-smooth);
 }
