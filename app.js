@@ -31,11 +31,13 @@ let currentUser = null;
 let looks = {}; // per-member custom look from Firestore: name -> { face, color }
 let kidView = "idag"; // kid mode: "idag" | "uge"
 let kidAnimate = true; // entrance animations on first paint & tab switch only
-// Kid mode piggy bank ("i sparegrisen"): balance = past earnings + this week's
-// live kr − payouts. Both stay null until loaded, which hides the line.
-let kidEarnedPast = null; // kr earned before this week (fetched, not live)
-let kidPaidOut = null; // all-time kr paid out to me (live payouts listener)
-let unsubKidPayouts = null;
+// Standing allowance balance ("til gode"): past earnings + this week's live kr
+// − payouts. Kids track their own numbers (the piggy bank); parents track the
+// whole family's total (the Lommepenge button badge). Both parts stay null
+// until loaded, which hides the figures.
+let allowEarnedPast = null; // kr earned before this week (fetched, not live)
+let allowPaidOut = null; // all-time kr paid out (live payouts listener)
+let unsubAllowPayouts = null;
 
 // Pending reminder timers, keyed by task id, so we can cancel/reschedule cleanly.
 const reminderTimers = new Map();
@@ -133,6 +135,8 @@ async function logCompletion(t) {
     });
   } catch (e) {
     console.warn("Could not log completion (are the new rules published?):", e);
+    // Stars degrade silently, but money is a promise to a kid — say it out loud.
+    if (t.money) showToast(`⚠️ De ${t.money} kr blev ikke gemt — tjek forbindelsen og kryds af igen.`);
   }
 }
 async function removeCompletion(t) {
@@ -141,6 +145,7 @@ async function removeCompletion(t) {
     await deleteDoc(doc(completionsCol, `${t.id}:${today}`));
   } catch (e) {
     console.warn("Could not remove completion:", e);
+    if (t.money) showToast(`⚠️ Optjeningen på ${t.money} kr blev ikke fjernet — prøv igen.`);
   }
 }
 
@@ -213,20 +218,38 @@ function scheduleReminders() {
   });
 }
 
-// A device left open overnight (the kitchen iPad) must roll over at midnight:
-// re-schedule the new day's alarms and re-render so "I dag" shows the right day.
+// Everything that must happen when the calendar day changes: new alarms, the
+// points week window (Monday), the allowance past/this-week boundary, sweeping
+// yesterday's done one-offs, and a re-render so "I dag" shows the right day.
+let lastSeenDay = ymd(new Date());
+function dayRollover() {
+  lastSeenDay = ymd(new Date());
+  scheduleReminders();
+  subscribeCompletions();
+  loadAllowance();
+  clearOldDone();
+  updateWithTransition();
+}
+
+// A device left open overnight (the kitchen iPad) rolls over at midnight…
 function scheduleMidnightRefresh() {
   const now = new Date();
   const next = new Date(now);
   next.setHours(24, 0, 5, 0); // 00:00:05 tonight
   setTimeout(() => {
-    scheduleReminders();
-    subscribeCompletions(); // Monday: the points week window rolls over
-    loadKidMoney(); // …and the piggy bank's past/this-week boundary moves too
-    updateWithTransition();
+    dayRollover();
     scheduleMidnightRefresh();
   }, next.getTime() - now.getTime());
 }
+
+// …but iOS suspends timers for backgrounded PWAs, so the midnight timeout can
+// oversleep. When the app returns to the foreground on a new day, roll over by
+// hand instead of waiting for the stale timer.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && ymd(new Date()) !== lastSeenDay) {
+    dayRollover();
+  }
+});
 
 function icon(name, color = "currentColor", size = 19) {
   const paths = {
@@ -567,26 +590,28 @@ function render() {
   // Update user bar
   const userBar = document.getElementById("userBar");
   if (userBar) {
+    // Family-wide "til gode" on the Lommepenge button, so parents see when
+    // it's payout time without opening the sheet. Hidden until loaded or at 0.
+    const weekMoneyAll = completions.reduce((s, c) => s + (c.money || 0), 0);
+    const famBalance =
+      allowEarnedPast !== null && allowPaidOut !== null
+        ? allowEarnedPast + weekMoneyAll - allowPaidOut
+        : null;
+    const balanceBit = famBalance > 0 ? ` · ${famBalance} kr` : "";
+    // One compact row: the weekly-use Lommepenge button stays visible, the
+    // rarely used actions (theme, PIN reset, log out) fold into the ⚙️ sheet.
     userBar.innerHTML = `
       <span class="user-me">
         <span class="user-dot" style="background:${colorFor(currentUser.name)}"></span>
         Logget ind som <strong>${currentUser.name}</strong>
       </span>
       <span class="user-actions">
-        <button class="theme-btn" id="themeBtn" title="Skift mellem lys og mørk">${
-          document.documentElement.classList.contains("dark") ? "☀️" : "🌙"
-        }</button>
-        ${isAdmin(currentUser) ? `<button class="admin-btn" id="payoutBtn">💰 Lommepenge</button>` : ""}
-        ${isAdmin(currentUser) ? `<button class="admin-btn" id="resetPinBtn">Nulstil PIN</button>` : ""}
-        <button class="logout-btn" id="logoutBtn">Log ud</button>
+        <button class="admin-btn" id="payoutBtn">💰 Lommepenge${balanceBit}</button>
+        <button class="theme-btn" id="settingsBtn" title="Indstillinger" aria-label="Indstillinger">⚙️</button>
       </span>
     `;
-    document.getElementById("logoutBtn").onclick = signOut;
-    document.getElementById("themeBtn").onclick = toggleTheme;
-    const payoutBtn = document.getElementById("payoutBtn");
-    if (payoutBtn) payoutBtn.onclick = openPayoutSheet;
-    const resetPinBtn = document.getElementById("resetPinBtn");
-    if (resetPinBtn) resetPinBtn.onclick = openResetPanel;
+    document.getElementById("payoutBtn").onclick = openPayoutSheet;
+    document.getElementById("settingsBtn").onclick = openSettingsSheet;
   }
 
   // Update view toggle active classes
@@ -995,21 +1020,14 @@ function confettiBurst(anchor, color, big = false) {
   }
 }
 
-// ============================================================
-// Kid mode — the simplified interface for Anker & Edith.
-// Their own tasks only, big tap targets, no create/edit/delete.
-// ============================================================
-
-const KID_CHECK_SVG = `<svg width="22" height="22" viewBox="0 0 24 24"><path d="M5 13l5 5L20 7" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-const LOOK_COLORS = ["#7C5CFF", "#FF5E7A", "#38BDF8", "#10B981", "#F97316", "#EF4444", "#14B8A6", "#D946EF"];
-const LOOK_FACES = ["😎", "🦄", "🐱", "🐶", "🦊", "🐼", "⚽", "🏀", "🎮", "🎸", "🚀"];
-
-// Load the piggy bank inputs. Past earnings change only at the Monday rollover
-// (scheduleMidnightRefresh re-runs this); payouts stream live, so the balance
-// drops the moment a parent hits "Betal ud". Failures are non-fatal: a value
-// that never loads just keeps the piggy bank line hidden.
-async function loadKidMoney() {
-  if (!currentUser || isAdmin(currentUser)) return;
+// Load the standing-balance inputs. Past earnings change only at the Monday
+// rollover (scheduleMidnightRefresh re-runs this); payouts stream live, so
+// balances move the moment a parent hits "Betal ud". A kid sums their own kr,
+// a parent the whole family's. Failures are non-fatal: a value that never
+// loads just keeps the balance figures hidden.
+async function loadAllowance() {
+  if (!currentUser) return;
+  const admin = isAdmin(currentUser);
   const me = currentUser.name;
   const weekStart = ymd(startOfWeek(new Date()));
   try {
@@ -1019,24 +1037,33 @@ async function loadKidMoney() {
     let sum = 0;
     snap.forEach((d) => {
       const c = d.data();
-      if (c.name === me && c.date < weekStart) sum += c.money || 0;
+      if ((admin || c.name === me) && c.date < weekStart) sum += c.money || 0;
     });
-    kidEarnedPast = sum;
+    allowEarnedPast = sum;
     updateWithTransition();
   } catch (e) {
-    console.warn("Loading past earnings failed (piggy bank hidden):", e);
+    console.warn("Loading past earnings failed (balance hidden):", e);
   }
-  if (!unsubKidPayouts) {
-    unsubKidPayouts = onSnapshot(
-      query(payoutsCol, where("name", "==", me)),
+  if (!unsubAllowPayouts) {
+    unsubAllowPayouts = onSnapshot(
+      admin ? payoutsCol : query(payoutsCol, where("name", "==", me)),
       (snap) => {
-        kidPaidOut = snap.docs.reduce((s, d) => s + (d.data().amount || 0), 0);
+        allowPaidOut = snap.docs.reduce((s, d) => s + (d.data().amount || 0), 0);
         updateWithTransition();
       },
-      (err) => console.warn("Payouts sync error (piggy bank hidden):", err)
+      (err) => console.warn("Payouts sync error (balance hidden):", err)
     );
   }
 }
+
+// ============================================================
+// Kid mode — the simplified interface for Anker & Edith.
+// Their own tasks only, big tap targets, no create/edit/delete.
+// ============================================================
+
+const KID_CHECK_SVG = `<svg width="22" height="22" viewBox="0 0 24 24"><path d="M5 13l5 5L20 7" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const LOOK_COLORS = ["#7C5CFF", "#FF5E7A", "#38BDF8", "#10B981", "#F97316", "#EF4444", "#14B8A6", "#D946EF"];
+const LOOK_FACES = ["😎", "🦄", "🐱", "🐶", "🦊", "🐼", "⚽", "🏀", "🎮", "🎸", "🚀"];
 
 // One flat list for the kid's day: overdue first, then today's (timed before
 // untimed), then "whenever" tasks — with everything done sunk to the bottom.
@@ -1155,8 +1182,8 @@ function renderKidMode() {
   const moneyInUse = tasks.some((t) => t.money) || completions.some((c) => c.money);
   // Piggy bank balance; null (and hidden) until both parts have loaded.
   const kidBalance =
-    kidEarnedPast !== null && kidPaidOut !== null
-      ? kidEarnedPast + weekMoney - kidPaidOut
+    allowEarnedPast !== null && allowPaidOut !== null
+      ? allowEarnedPast + weekMoney - allowPaidOut
       : null;
   const isDark = document.documentElement.classList.contains("dark");
   const customized = !!(looks[me]?.face || looks[me]?.color);
@@ -1180,7 +1207,7 @@ function renderKidMode() {
           <span class="kid-progress-label">Din dag</span>
           <span class="kid-progress-count">${total === 0 ? "Fri i dag 🎈" : `⭐ ${doneToday} af ${total}`}</span>
         </div>
-        <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+        ${total > 0 ? `<div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>` : ""}
         <div class="kid-week-stars">🏆 Denne uge: ${weekStars} ${weekStars === 1 ? "stjerne" : "stjerner"}</div>
         ${moneyInUse ? `<div class="kid-week-money">💰 Du har tjent ${weekMoney} kr denne uge</div>` : ""}
         ${moneyInUse && kidBalance !== null ? `<div class="kid-piggy">🐷 Du har ${kidBalance} kr i sparegrisen</div>` : ""}
@@ -1538,6 +1565,16 @@ function dismissUndo() {
   undoState = null;
 }
 
+// A transient warning snackbar (no action button) for failures the family
+// should actually see — e.g. earned kr that didn't get saved.
+function showToast(msg) {
+  const el = document.createElement("div");
+  el.className = "undo-snackbar toast";
+  el.innerHTML = `<span class="undo-text">${msg}</span>`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 6000);
+}
+
 function showUndo(t) {
   dismissUndo();
   const el = document.createElement("div");
@@ -1563,6 +1600,21 @@ async function clearDone() {
   if (!confirm("Fjern alle afkrydsede opgaver?")) return;
   const toRemove = tasks.filter((t) => t.done);
   await Promise.all(toRemove.map((t) => deleteDoc(doc(tasksCol, t.id))));
+}
+
+// Day-change housekeeping: done one-off tasks from previous days disappear on
+// their own — the completions log keeps the durable record, so the list needs
+// no manual "Ryd klarede" tending. Today's checked-off tasks stay visible.
+async function clearOldDone() {
+  const todayStr = ymd(new Date());
+  const stale = tasks.filter(
+    (t) => t.done && !t.repeat && (!t.due || t.due < todayStr)
+  );
+  try {
+    await Promise.all(stale.map((t) => deleteDoc(doc(tasksCol, t.id))));
+  } catch (e) {
+    console.warn("Auto-clearing old done tasks failed:", e);
+  }
 }
 
 // Tap a task to edit everything about it: label, emoji, date, time, alarm,
@@ -1764,6 +1816,54 @@ function openEditSheet(t) {
   // No autofocus, same as the add sheet — don't pop the mobile keyboard.
   drawAlarm();
   drawChips();
+}
+
+// The ⚙️ sheet: rarely used device/account actions live here so the user bar
+// stays a single compact row on phones.
+function openSettingsSheet() {
+  let host = document.getElementById("settingsSheet");
+  if (!host) {
+    host = document.createElement("div");
+    host.id = "settingsSheet";
+    document.body.appendChild(host);
+  }
+
+  function close() {
+    host.remove();
+  }
+
+  function draw() {
+    const dark = document.documentElement.classList.contains("dark");
+    host.innerHTML = `
+      <div class="modal-wrap">
+        <div class="modal-card">
+          <div class="modal-head">
+            <h2 class="modal-title">Indstillinger</h2>
+            <button class="modal-close" data-close="1">✕</button>
+          </div>
+          <div class="settings-list">
+            <button class="settings-row" id="setTheme">${dark ? "☀️ Skift til lyst tema" : "🌙 Skift til mørkt tema"}</button>
+            <button class="settings-row" id="setResetPin">🔑 Nulstil PIN-kode</button>
+            <button class="settings-row danger" id="setLogout">Log ud</button>
+          </div>
+        </div>
+      </div>`;
+    host.querySelector("[data-close]").onclick = close;
+    host.querySelector(".modal-wrap").onclick = (e) => {
+      if (e.target === e.currentTarget) close();
+    };
+    host.querySelector("#setTheme").onclick = () => {
+      toggleTheme();
+      draw(); // refresh the row label; toggleTheme re-renders the app behind us
+    };
+    host.querySelector("#setResetPin").onclick = () => {
+      close();
+      openResetPanel();
+    };
+    host.querySelector("#setLogout").onclick = signOut;
+  }
+
+  draw();
 }
 
 // Admin-only: reset another member's PIN. They pick a new one at next login.
@@ -1973,9 +2073,14 @@ async function openPayoutSheet() {
             <div class="payout-card" style="border-left-color:${colorFor(name)}">
               <div class="payout-top">
                 <span class="payout-name" style="color:${colorFor(name)}">${name}</span>
-                <span class="payout-balance">${bal} kr <span class="payout-balance-label">til gode</span></span>
+                <span class="payout-balance ${bal < 0 ? "negative" : ""}">${bal} kr <span class="payout-balance-label">til gode</span></span>
               </div>
               <div class="payout-sub">Optjent i alt ${e} kr · Udbetalt ${p} kr</div>
+              ${
+                bal < 0
+                  ? `<div class="payout-negative-note">Udbetalt mere end optjent — det sker fx når en opgave krydses af igen efter udbetaling. Nye optjeninger udligner først minusset.</div>`
+                  : ""
+              }
               ${
                 isPaying
                   ? `<div class="payout-pay-row">
@@ -2120,5 +2225,5 @@ onSnapshot(
 
 render();
 subscribeCompletions();
-loadKidMoney(); // kid mode only; a no-op for parents
+loadAllowance(); // kid piggy bank / parent Lommepenge badge
 scheduleMidnightRefresh();

@@ -435,6 +435,11 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Warning toasts must be fully readable — let the text wrap. */
+.undo-snackbar.toast .undo-text {
+  white-space: normal;
+  line-height: 1.45;
+}
 .undo-btn {
   border: none;
   background: none;
@@ -584,10 +589,18 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   color: #10B981;
   white-space: nowrap;
 }
+.payout-balance.negative { color: #EF4444; }
 .payout-balance-label {
   font-size: 12px;
   font-weight: 700;
   color: var(--text-tertiary);
+}
+.payout-negative-note {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: #EF4444;
 }
 .payout-sub {
   font-size: 12.5px;
@@ -656,6 +669,27 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   line-height: 1;
 }
 .payout-hist-del:hover { color: #991B1B; }
+
+/* --- ⚙️ Indstillinger sheet --- */
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.settings-row {
+  border: 1px solid var(--card-border);
+  background: var(--bg-app);
+  padding: 12px 14px;
+  border-radius: var(--border-radius-sm);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+.settings-row:hover { border-color: rgba(28, 25, 23, 0.15); }
+.settings-row.danger { color: #B4423C; }
 .payout-hist-label {
   font-size: 11px;
   font-weight: 800;
