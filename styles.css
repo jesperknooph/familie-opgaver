@@ -1951,7 +1951,7 @@ html.dark .assign-row::-webkit-scrollbar-thumb {
   color: var(--text-secondary);
 }
 .kid-week-money {
-  margin-top: 4px;
+  margin-top: 10px;
   font-size: 13.5px;
   font-weight: 800;
   color: #10B981;

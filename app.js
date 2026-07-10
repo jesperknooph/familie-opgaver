@@ -53,6 +53,11 @@ const REPEAT_OPTIONS = [
 const REPEAT_DAYS = { daily: 1, "2day": 2, weekly: 7, "2week": 14 };
 const REPEAT_LABELS = { daily: "Dagligt", "2day": "Hver 2. dag", weekly: "Ugentligt", "2week": "Hver 2. uge" };
 const POINTS_OPTIONS = [null, 1, 2, 3, 5];
+// The ⭐ points UI is hidden: kr allowance is the family's reward system, and
+// two currencies next to each other was noise. All points data (tasks,
+// completions, templates) is kept and still logged — flip this to bring the
+// stars back exactly as they were.
+const SHOW_STARS = false;
 let view = "idag"; // "idag" | "liste" | "uge"
 let weekOffset = 0; // 0 = denne uge
 let connected = false;
@@ -289,7 +294,7 @@ function taskRow(t) {
           t.repeat ? `<span class="task-repeat">🔁 ${REPEAT_LABELS[t.repeat] || ""}</span>` : ""
         }${rotationBit}</span>
       </div>
-      ${t.points ? `<span class="task-points">⭐ ${t.points}</span>` : ""}
+      ${SHOW_STARS && t.points ? `<span class="task-points">⭐ ${t.points}</span>` : ""}
       ${t.money ? `<span class="task-money">💰 ${t.money} kr</span>` : ""}
       ${t.time ? `<span class="task-time ${t.alarm ? "has-alarm" : ""}">${t.alarm ? "🔔" : "🕐"} ${t.time}</span>` : ""}
       <button class="delete-button" data-delete="${t.id}">${icon("trash", "#D6CFE0", 14)}</button>
@@ -518,18 +523,18 @@ function renderShell() {
   });
 }
 
-// This week's star + kr tally per family member. Hidden until points or money
-// are in use anywhere.
+// This week's tally per family member. With stars hidden (SHOW_STARS) the row
+// carries only kr — and only for members who actually earned something, so
+// parents aren't shown a row of zeros.
 function renderStars() {
   const row = document.getElementById("starsRow");
   if (!row) return;
-  const inUse =
-    completions.length > 0 || tasks.some((t) => t.points || t.money);
-  if (!inUse) {
-    row.innerHTML = "";
-    row.classList.remove("show");
-    return;
-  }
+  const starsInUse =
+    SHOW_STARS && (completions.length > 0 || tasks.some((t) => t.points || t.money));
+  // Only show the kr figure once money is actually in play, so families who
+  // only use stars don't suddenly see "0 kr" everywhere.
+  const moneyInUse =
+    tasks.some((t) => t.money) || completions.some((c) => c.money);
   const weekPoints = {};
   const weekMoney = {};
   MEMBERS.forEach((m) => {
@@ -542,19 +547,24 @@ function renderStars() {
       weekMoney[c.name] += c.money || 0;
     }
   });
-  // Only show the kr figure once money is actually in play, so families who
-  // only use stars don't suddenly see "0 kr" everywhere.
-  const moneyInUse =
-    tasks.some((t) => t.money) || completions.some((c) => c.money);
+  const shown = starsInUse
+    ? MEMBERS
+    : MEMBERS.filter((m) => weekMoney[m.name] > 0);
+  if ((!starsInUse && !moneyInUse) || shown.length === 0) {
+    row.innerHTML = "";
+    row.classList.remove("show");
+    return;
+  }
   row.classList.add("show");
   row.innerHTML =
-    `<span class="stars-label">⭐ Denne uge</span>` +
-    MEMBERS.map(
-      (m) =>
-        `<span class="stars-chip" style="color:${colorFor(m.name)}">${m.name} <strong>${weekPoints[m.name]}</strong>${
-          moneyInUse ? `<span class="stars-money">💰 ${weekMoney[m.name]} kr</span>` : ""
-        }</span>`
-    ).join("");
+    `<span class="stars-label">${starsInUse ? "⭐" : "💰"} Denne uge</span>` +
+    shown.map((m) => {
+      const pts = starsInUse ? ` <strong>${weekPoints[m.name]}</strong>` : "";
+      const kr = moneyInUse
+        ? `<span class="stars-money">${starsInUse ? "💰 " : ""}${weekMoney[m.name]} kr</span>`
+        : "";
+      return `<span class="stars-chip" style="color:${colorFor(m.name)}">${m.name}${pts}${kr}</span>`;
+    }).join("");
 }
 
 function render() {
@@ -762,7 +772,7 @@ function openAddSheet() {
         </div>
 
         <div class="repeat-row" id="addRepeatRow"></div>
-        <div class="repeat-row" id="addPointsRow"></div>
+        ${SHOW_STARS ? `<div class="repeat-row" id="addPointsRow"></div>` : ""}
         <div class="repeat-row money-row">
           <span class="repeat-row-label">Kr</span>
           <div class="money-field">
@@ -813,7 +823,8 @@ function openAddSheet() {
         const tpl = TASK_TEMPLATES[Number(el.dataset.template)];
         host.querySelector("#addEmoji").value = tpl.emoji;
         host.querySelector("#addLabel").value = tpl.label;
-        points = tpl.points || null;
+        // With stars hidden, templates shouldn't silently attach points.
+        points = SHOW_STARS ? tpl.points || null : null;
         host.querySelector("#addMoneyInput").value = tpl.money || "";
         drawChips();
         showTpl = false; // collapse the gallery once a template is chosen
@@ -850,7 +861,8 @@ function openAddSheet() {
           (o) => `<button class="repeat-chip ${repeat === o.id ? "active" : ""}" data-repeat="${o.id}">${o.label}</button>`
         ).join("")}
       </div>`;
-    host.querySelector("#addPointsRow").innerHTML = `
+    const addPointsRow = host.querySelector("#addPointsRow");
+    if (addPointsRow) addPointsRow.innerHTML = `
       <span class="repeat-row-label">Stjerner</span>
       <div class="repeat-chips">
         ${POINTS_OPTIONS.map(
@@ -1096,7 +1108,7 @@ function kidTaskCard(t, i) {
         <div class="kid-task-label">${escapeHtml(t.label)}</div>
         <div class="kid-task-meta">
           ${t.time ? `<span class="task-time ${t.alarm ? "has-alarm" : ""}">${t.alarm ? "🔔" : "🕐"} ${t.time}</span>` : ""}
-          ${t.points ? `<span class="task-points">⭐ ${t.points}</span>` : ""}
+          ${SHOW_STARS && t.points ? `<span class="task-points">⭐ ${t.points}</span>` : ""}
           ${t.money ? `<span class="task-money">💰 ${t.money} kr</span>` : ""}
           ${t.repeat ? `<span class="task-time">🔁 ${REPEAT_LABELS[t.repeat] || ""}</span>` : ""}
           ${late ? `<span class="task-time">⏰ Fra tidligere</span>` : ""}
@@ -1205,10 +1217,10 @@ function renderKidMode() {
       <div class="kid-progress" style="${kidAnimate ? "animation-delay:0.08s;" : ""} view-transition-name: kid-progress;">
         <div class="kid-progress-top">
           <span class="kid-progress-label">Din dag</span>
-          <span class="kid-progress-count">${total === 0 ? "Fri i dag 🎈" : `⭐ ${doneToday} af ${total}`}</span>
+          <span class="kid-progress-count">${total === 0 ? "Fri i dag 🎈" : `${SHOW_STARS ? "⭐" : "✅"} ${doneToday} af ${total}`}</span>
         </div>
         ${total > 0 ? `<div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>` : ""}
-        <div class="kid-week-stars">🏆 Denne uge: ${weekStars} ${weekStars === 1 ? "stjerne" : "stjerner"}</div>
+        ${SHOW_STARS ? `<div class="kid-week-stars">🏆 Denne uge: ${weekStars} ${weekStars === 1 ? "stjerne" : "stjerner"}</div>` : ""}
         ${moneyInUse ? `<div class="kid-week-money">💰 Du har tjent ${weekMoney} kr denne uge</div>` : ""}
         ${moneyInUse && kidBalance !== null ? `<div class="kid-piggy">🐷 Du har ${kidBalance} kr i sparegrisen</div>` : ""}
       </div>
@@ -1664,7 +1676,7 @@ function openEditSheet(t) {
         </div>
 
         <div class="repeat-row" id="editRepeatRow"></div>
-        <div class="repeat-row" id="editPointsRow"></div>
+        ${SHOW_STARS ? `<div class="repeat-row" id="editPointsRow"></div>` : ""}
         <div class="repeat-row money-row">
           <span class="repeat-row-label">Kr</span>
           <div class="money-field">
@@ -1715,7 +1727,8 @@ function openEditSheet(t) {
           (o) => `<button class="repeat-chip ${repeat === o.id ? "active" : ""}" data-repeat="${o.id}">${o.label}</button>`
         ).join("")}
       </div>`;
-    host.querySelector("#editPointsRow").innerHTML = `
+    const editPointsRow = host.querySelector("#editPointsRow");
+    if (editPointsRow) editPointsRow.innerHTML = `
       <span class="repeat-row-label">Stjerner</span>
       <div class="repeat-chips">
         ${POINTS_OPTIONS.map(
