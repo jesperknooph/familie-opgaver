@@ -979,7 +979,7 @@ function openAddSheet() {
 function applyTheme(dark) {
   document.documentElement.classList.toggle("dark", dark);
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = dark ? "#1E1B18" : "#FDF7ED";
+  if (meta) meta.content = dark ? "#0A0E1C" : "#EAEFFB";
 }
 
 function toggleTheme() {

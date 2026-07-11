@@ -1,18 +1,20 @@
 /* --- Design System & Custom Properties --- */
 :root {
-  --bg-app: #FDF7ED; /* Sunny warm cream background */
-  --text-primary: #1C1917; /* Dark slate charcoal */
-  --text-secondary: #78716C; /* Stone grey */
-  --text-tertiary: #A8A29E; /* Stone muted grey */
+  /* "Nordlys" identity (family vote 2026): cool Scandinavian daylight in light
+     mode, aurora night in dark. The one bold gesture is the aurora gradient. */
+  --bg-app: #EAEFFB; /* Porcelain-lavender daylight */
+  --text-primary: #131A31; /* Cool ink-navy */
+  --text-secondary: #5A6689; /* Slate blue-grey */
+  --text-tertiary: #8A93B2; /* Muted blue-grey */
 
   --card-bg: #FFFFFF;
-  --card-border: rgba(28, 25, 23, 0.05);
-  --card-shadow-sm: 0 2px 8px rgba(28, 25, 23, 0.02), 0 1px 2px rgba(28, 25, 23, 0.02);
-  --card-shadow-md: 0 12px 24px -10px rgba(28, 25, 23, 0.06), 0 4px 12px rgba(28, 25, 23, 0.02);
-  --card-shadow-lg: 0 20px 40px -15px rgba(28, 25, 23, 0.1), 0 8px 20px -5px rgba(28, 25, 23, 0.03);
+  --card-border: rgba(19, 26, 49, 0.05);
+  --card-shadow-sm: 0 2px 8px rgba(19, 26, 49, 0.02), 0 1px 2px rgba(19, 26, 49, 0.02);
+  --card-shadow-md: 0 12px 24px -10px rgba(19, 26, 49, 0.06), 0 4px 12px rgba(19, 26, 49, 0.02);
+  --card-shadow-lg: 0 20px 40px -15px rgba(19, 26, 49, 0.1), 0 8px 20px -5px rgba(19, 26, 49, 0.03);
 
-  --accent: #FF7A59;
-  --accent-grad: linear-gradient(135deg, #FFB03A 0%, #FF5E7A 100%);
+  --accent: #6D5CF0;
+  --accent-grad: linear-gradient(135deg, #14B69B 0%, #6D5CF0 100%); /* aurora */
   --gold-grad: linear-gradient(135deg, #FFE08A 0%, #FFC53D 100%);
   --money-grad: linear-gradient(135deg, #6EE7B7 0%, #10B981 100%);
 
@@ -42,10 +44,10 @@ html, body {
 body {
   min-height: 100vh;
   background-image:
-    radial-gradient(600px 420px at 85% -10%, rgba(255, 197, 61, 0.20), transparent 70%),
-    radial-gradient(520px 400px at -12% 10%, rgba(56, 189, 248, 0.13), transparent 70%),
-    radial-gradient(540px 440px at 110% 55%, rgba(255, 94, 122, 0.09), transparent 70%),
-    radial-gradient(480px 400px at -8% 90%, rgba(74, 222, 128, 0.10), transparent 70%);
+    radial-gradient(600px 420px at 85% -10%, rgba(20, 182, 155, 0.16), transparent 70%),
+    radial-gradient(520px 400px at -12% 10%, rgba(109, 92, 240, 0.13), transparent 70%),
+    radial-gradient(540px 440px at 110% 55%, rgba(56, 140, 248, 0.09), transparent 70%),
+    radial-gradient(480px 400px at -8% 90%, rgba(85, 230, 175, 0.10), transparent 70%);
   background-attachment: fixed;
 }
 
@@ -97,10 +99,10 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   display: inline-flex; 
   align-items: center; 
   gap: 6px; 
-  background: rgba(28, 25, 23, 0.04);
+  background: rgba(19, 26, 49, 0.04);
   padding: 5px 12px;
   border-radius: 99px;
-  border: 1.5px solid rgba(28, 25, 23, 0.01);
+  border: 1.5px solid rgba(19, 26, 49, 0.01);
 }
 .sync-dot { 
   width: 6px; 
@@ -225,7 +227,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   display: inline-block; 
 }
 .logout-btn { 
-  border: 1px solid rgba(28, 25, 23, 0.08); 
+  border: 1px solid rgba(19, 26, 49, 0.08); 
   background: var(--card-bg); 
   padding: 6px 14px; 
   border-radius: var(--border-radius-sm); 
@@ -235,9 +237,9 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   cursor: pointer; 
 }
 .logout-btn:hover {
-  background: rgba(28, 25, 23, 0.02);
+  background: rgba(19, 26, 49, 0.02);
   color: var(--text-primary);
-  border-color: rgba(28, 25, 23, 0.15);
+  border-color: rgba(19, 26, 49, 0.15);
 }
 .user-actions {
   display: flex;
@@ -247,7 +249,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   gap: 8px;
 }
 .admin-btn {
-  border: 1px solid rgba(28, 25, 23, 0.08);
+  border: 1px solid rgba(19, 26, 49, 0.08);
   background: var(--card-bg);
   padding: 6px 14px;
   border-radius: var(--border-radius-sm);
@@ -257,12 +259,12 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   cursor: pointer;
 }
 .admin-btn:hover {
-  background: rgba(28, 25, 23, 0.02);
+  background: rgba(19, 26, 49, 0.02);
   color: var(--text-primary);
-  border-color: rgba(28, 25, 23, 0.15);
+  border-color: rgba(19, 26, 49, 0.15);
 }
 .theme-btn {
-  border: 1px solid rgba(28, 25, 23, 0.08);
+  border: 1px solid rgba(19, 26, 49, 0.08);
   background: var(--card-bg);
   padding: 5px 10px;
   border-radius: var(--border-radius-sm);
@@ -271,8 +273,8 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   cursor: pointer;
 }
 .theme-btn:hover {
-  background: rgba(28, 25, 23, 0.02);
-  border-color: rgba(28, 25, 23, 0.15);
+  background: rgba(19, 26, 49, 0.02);
+  border-color: rgba(19, 26, 49, 0.15);
 }
 
 /* --- Weekly stars strip (points tally per member) --- */
@@ -381,7 +383,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   margin-top: 18px;
 }
 .btn-ghost {
-  border: 1px solid rgba(28, 25, 23, 0.1);
+  border: 1px solid rgba(19, 26, 49, 0.1);
   background: transparent;
   color: var(--text-secondary);
   font-family: inherit;
@@ -401,10 +403,10 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   padding: 10px 22px;
   border-radius: 999px;
   cursor: pointer;
-  box-shadow: 0 3px 10px rgba(255, 94, 122, 0.3);
+  box-shadow: 0 3px 10px rgba(109, 92, 240, 0.3);
 }
 .btn-primary:hover {
-  box-shadow: 0 5px 14px rgba(255, 94, 122, 0.4);
+  box-shadow: 0 5px 14px rgba(109, 92, 240, 0.4);
   transform: translateY(-1px);
 }
 .task-body[data-edit] {
@@ -465,7 +467,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
 }
 .modal-wrap {
   min-height: 100vh;
-  background: rgba(28, 25, 23, 0.4);
+  background: rgba(19, 26, 49, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -528,7 +530,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   font-weight: 600;
 }
 .reset-btn {
-  border: 1px solid rgba(28, 25, 23, 0.08);
+  border: 1px solid rgba(19, 26, 49, 0.08);
   background: var(--card-bg);
   padding: 6px 14px;
   border-radius: var(--border-radius-sm);
@@ -689,7 +691,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   text-align: left;
   cursor: pointer;
 }
-.settings-row:hover { border-color: rgba(28, 25, 23, 0.15); }
+.settings-row:hover { border-color: rgba(19, 26, 49, 0.15); }
 .settings-row.danger { color: #B4423C; }
 .payout-hist-label {
   font-size: 11px;
@@ -741,10 +743,10 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
 .login-wrap {
   min-height: 100vh;
   background:
-    radial-gradient(520px 380px at 85% 0%, rgba(255, 197, 61, 0.25), transparent 70%),
-    radial-gradient(480px 360px at 0% 20%, rgba(56, 189, 248, 0.18), transparent 70%),
-    radial-gradient(500px 400px at 100% 90%, rgba(255, 94, 122, 0.14), transparent 70%),
-    radial-gradient(circle at top left, #FDF7ED, #F4E9DA);
+    radial-gradient(520px 380px at 85% 0%, rgba(20, 182, 155, 0.20), transparent 70%),
+    radial-gradient(480px 360px at 0% 20%, rgba(109, 92, 240, 0.16), transparent 70%),
+    radial-gradient(500px 400px at 100% 90%, rgba(56, 140, 248, 0.12), transparent 70%),
+    radial-gradient(circle at top left, #EAEFFB, #DCE3F6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -781,7 +783,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   gap: 16px; 
 }
 .login-avatar { 
-  border: 1px solid rgba(28, 25, 23, 0.04); 
+  border: 1px solid rgba(19, 26, 49, 0.04); 
   background: rgba(255, 255, 255, 0.6); 
   cursor: pointer; 
   display: flex; 
@@ -795,7 +797,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
 .login-avatar:hover {
   transform: translateY(-2px);
   background: #fff;
-  border-color: rgba(28, 25, 23, 0.1);
+  border-color: rgba(19, 26, 49, 0.1);
   box-shadow: var(--card-shadow-md);
 }
 .login-avatar:disabled { 
@@ -877,7 +879,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   margin: 0 auto; 
 }
 .key {
-  border: 1px solid rgba(28, 25, 23, 0.08);
+  border: 1px solid rgba(19, 26, 49, 0.08);
   background: rgba(255, 255, 255, 0.6);
   border-radius: var(--border-radius-lg);
   font-size: 26px;
@@ -890,10 +892,10 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
 }
 .key:hover {
   background: #fff;
-  border-color: rgba(28, 25, 23, 0.15);
+  border-color: rgba(19, 26, 49, 0.15);
 }
 .key:active { 
-  background: rgba(28, 25, 23, 0.05); 
+  background: rgba(19, 26, 49, 0.05); 
   transform: scale(0.94); 
 }
 .key-empty { 
@@ -936,7 +938,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
 /* --- View Toggle (Pill Selector) --- */
 .view-toggle {
   display: inline-flex;
-  background: rgba(28, 25, 23, 0.06);
+  background: rgba(19, 26, 49, 0.06);
   border-radius: 999px;
   padding: 5px;
   gap: 2px;
@@ -954,9 +956,11 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   cursor: pointer;
 }
 .view-btn.active {
-  background: var(--card-bg);
-  color: var(--text-primary);
-  box-shadow: var(--card-shadow-sm);
+  /* The aurora gradient marks the active view — Nordlys' signature gesture,
+     matching the kid tabs. */
+  background: var(--accent-grad);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(109, 92, 240, 0.35);
 }
 
 /* --- "Ny opgave" trigger (opens the add sheet) --- */
@@ -968,7 +972,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   padding: 12px 14px;
   margin-bottom: 24px;
   background: var(--card-bg);
-  border: 2px dashed rgba(28, 25, 23, 0.1);
+  border: 2px dashed rgba(19, 26, 49, 0.1);
   border-radius: var(--border-radius-lg);
   cursor: pointer;
   font-family: inherit;
@@ -989,7 +993,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   flex-shrink: 0;
   border-radius: 999px;
   background: var(--accent-grad);
-  box-shadow: 0 3px 10px rgba(255, 94, 122, 0.35);
+  box-shadow: 0 3px 10px rgba(109, 92, 240, 0.35);
 }
 .add-trigger-text {
   font-size: 15.5px;
@@ -1009,7 +1013,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
 
 /* Template gallery (tap-to-add preset tasks) */
 .template-toggle {
-  border: 1px solid rgba(28, 25, 23, 0.08);
+  border: 1px solid rgba(19, 26, 49, 0.08);
   background: var(--bg-app);
   color: var(--text-secondary);
   font-family: inherit;
@@ -1040,7 +1044,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   gap: 6px;
   padding: 12px 6px;
   background: var(--bg-app);
-  border: 1px solid rgba(28, 25, 23, 0.06);
+  border: 1px solid rgba(19, 26, 49, 0.06);
   border-radius: var(--border-radius-md);
   cursor: pointer;
   text-align: center;
@@ -1050,7 +1054,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
 }
 .template-chip:hover {
   background: #fff;
-  border-color: rgba(28, 25, 23, 0.12);
+  border-color: rgba(19, 26, 49, 0.12);
   box-shadow: var(--card-shadow-md);
   transform: translateY(-3px) scale(1.04);
 }
@@ -1095,7 +1099,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   min-width: 96px;
 }
 .alarm-toggle {
-  border: 1.5px solid rgba(28, 25, 23, 0.08);
+  border: 1.5px solid rgba(19, 26, 49, 0.08);
   background: var(--card-bg);
   border-radius: var(--border-radius-sm);
   padding: 6px 12px;
@@ -1119,7 +1123,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   color: var(--text-secondary); 
 }
 .date-input { 
-  border: 1.5px solid rgba(28, 25, 23, 0.08); 
+  border: 1.5px solid rgba(19, 26, 49, 0.08); 
   border-radius: var(--border-radius-sm); 
   padding: 6px 12px; 
   font-size: 13.5px; 
@@ -1131,7 +1135,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   transition: var(--transition-smooth);
 }
 .date-input:focus {
-  border-color: rgba(28, 25, 23, 0.2);
+  border-color: rgba(19, 26, 49, 0.2);
 }
 .date-clear { 
   border: none; 
@@ -1148,7 +1152,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
 
 .input {
   width: 100%; 
-  border: 1.5px solid rgba(28, 25, 23, 0.08); 
+  border: 1.5px solid rgba(19, 26, 49, 0.08); 
   border-radius: var(--border-radius-md);
   padding: 12px 14px; 
   font-size: 15.5px; 
@@ -1160,7 +1164,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
 }
 .input:focus {
   background: var(--card-bg);
-  border-color: rgba(28, 25, 23, 0.2);
+  border-color: rgba(19, 26, 49, 0.2);
 }
 
 /* Recurrence selector */
@@ -1201,9 +1205,9 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
 }
 .repeat-chips::-webkit-scrollbar { height: 4px; }
 .repeat-chips::-webkit-scrollbar-track { background: transparent; }
-.repeat-chips::-webkit-scrollbar-thumb { background: rgba(28, 25, 23, 0.08); border-radius: 99px; }
+.repeat-chips::-webkit-scrollbar-thumb { background: rgba(19, 26, 49, 0.08); border-radius: 99px; }
 .repeat-chip {
-  border: 1px solid rgba(28, 25, 23, 0.05);
+  border: 1px solid rgba(19, 26, 49, 0.05);
   border-radius: 999px;
   padding: 8px 14px;
   font-size: 13px;
@@ -1234,12 +1238,12 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   background: transparent;
 }
 .assign-row::-webkit-scrollbar-thumb {
-  background: rgba(28, 25, 23, 0.08);
+  background: rgba(19, 26, 49, 0.08);
   border-radius: 99px;
 }
 
 .assign-chip {
-  border: 1px solid rgba(28, 25, 23, 0.05); 
+  border: 1px solid rgba(19, 26, 49, 0.05); 
   border-radius: 999px; 
   padding: 8px 14px;
   font-size: 13px; 
@@ -1282,7 +1286,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   border-radius: var(--border-radius-lg);
   padding: 32px 24px;
   text-align: center;
-  border: 2px dashed rgba(28, 25, 23, 0.08);
+  border: 2px dashed rgba(19, 26, 49, 0.08);
 }
 .empty-emoji {
   display: block;
@@ -1312,7 +1316,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   background: #fff; 
   transform: translateY(-2px);
   box-shadow: var(--card-shadow-md);
-  border-color: rgba(28, 25, 23, 0.1);
+  border-color: rgba(19, 26, 49, 0.1);
 }
 .task-row.done { 
   opacity: 0.55; 
@@ -1450,7 +1454,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
 .progress-track {
   flex: 1;
   height: 16px;
-  background: rgba(28, 25, 23, 0.07);
+  background: rgba(19, 26, 49, 0.07);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -1492,7 +1496,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   margin-bottom: 20px; 
 }
 .week-nav-btn { 
-  border: 1px solid rgba(28, 25, 23, 0.08); 
+  border: 1px solid rgba(19, 26, 49, 0.08); 
   background: var(--card-bg); 
   width: 38px; 
   height: 38px; 
@@ -1504,8 +1508,8 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   box-shadow: var(--card-shadow-sm);
 }
 .week-nav-btn:hover {
-  background: rgba(28, 25, 23, 0.02);
-  border-color: rgba(28, 25, 23, 0.15);
+  background: rgba(19, 26, 49, 0.02);
+  border-color: rgba(19, 26, 49, 0.15);
 }
 .week-title { 
   border: none; 
@@ -1519,7 +1523,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   border-radius: var(--border-radius-md);
 }
 .week-title:hover {
-  background: rgba(28, 25, 23, 0.03);
+  background: rgba(19, 26, 49, 0.03);
 }
 .week-num { 
   font-family: 'Outfit', sans-serif; 
@@ -1551,7 +1555,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   background: rgba(255,255,255,0.4);
   padding: 10px 14px;
   border-radius: var(--border-radius-lg);
-  border: 1px solid rgba(28, 25, 23, 0.04);
+  border: 1px solid rgba(19, 26, 49, 0.04);
 }
 .day-head { 
   display: flex; 
@@ -1559,7 +1563,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   justify-content: space-between; 
   margin-bottom: 10px; 
   padding-bottom: 6px; 
-  border-bottom: 1px solid rgba(28, 25, 23, 0.06); 
+  border-bottom: 1px solid rgba(19, 26, 49, 0.06); 
 }
 .day-name { 
   font-size: 14.5px; 
@@ -1612,7 +1616,7 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   margin-top: 24px; 
 }
 .clear-button {
-  border: 1px solid rgba(28, 25, 23, 0.08); 
+  border: 1px solid rgba(19, 26, 49, 0.08); 
   background: var(--card-bg); 
   padding: 10px 18px; 
   border-radius: var(--border-radius-md);
@@ -1668,12 +1672,13 @@ svg.icon {
    before first paint (saved choice in localStorage, else system setting). */
 html.dark {
   color-scheme: dark; /* native date/time pickers, scrollbars etc. */
-  --bg-app: #1E1B18;
-  --text-primary: #F3EEE6;
-  --text-secondary: #A8A29E;
-  --text-tertiary: #6E6862;
-  --card-bg: #2A2521;
-  --card-border: rgba(255, 255, 255, 0.06);
+  /* Nordlys night: ink-navy ground, aurora washes, glowing accents. */
+  --bg-app: #0A0E1C;
+  --text-primary: #EAF0FF;
+  --text-secondary: #99A3C4;
+  --text-tertiary: #667496;
+  --card-bg: #121A30;
+  --card-border: rgba(150, 170, 220, 0.10);
   --card-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.2);
   --card-shadow-md: 0 12px 24px -10px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.25);
   --card-shadow-lg: 0 20px 40px -15px rgba(0, 0, 0, 0.6), 0 8px 20px -5px rgba(0, 0, 0, 0.3);
@@ -1681,10 +1686,10 @@ html.dark {
 
 html.dark body {
   background-image:
-    radial-gradient(600px 420px at 85% -10%, rgba(255, 197, 61, 0.07), transparent 70%),
-    radial-gradient(520px 400px at -12% 10%, rgba(56, 189, 248, 0.06), transparent 70%),
-    radial-gradient(540px 440px at 110% 55%, rgba(255, 94, 122, 0.05), transparent 70%),
-    radial-gradient(480px 400px at -8% 90%, rgba(74, 222, 128, 0.05), transparent 70%);
+    radial-gradient(600px 420px at 85% -10%, rgba(53, 228, 198, 0.10), transparent 70%),
+    radial-gradient(520px 400px at -12% 10%, rgba(139, 124, 255, 0.12), transparent 70%),
+    radial-gradient(540px 440px at 110% 55%, rgba(88, 180, 255, 0.06), transparent 70%),
+    radial-gradient(480px 400px at -8% 90%, rgba(85, 230, 175, 0.05), transparent 70%);
 }
 
 /* Hardcoded "ink on paper" borders flip to soft white */
@@ -1705,8 +1710,8 @@ html.dark .input:focus, html.dark .date-input:focus {
 
 /* White hover states become a lighter card tone */
 html.dark .task-row:hover, html.dark .template-chip:hover, html.dark .key:hover,
-html.dark .login-avatar:hover, html.dark .view-btn.active {
-  background: #332E29;
+html.dark .login-avatar:hover {
+  background: #1A2440;
 }
 html.dark .task-row:hover, html.dark .template-chip:hover, html.dark .key:hover,
 html.dark .login-avatar:hover {
@@ -1735,10 +1740,10 @@ html.dark .progress-track {
 /* Dark chips: light pill needs dark text (was dark pill + white text) */
 html.dark .repeat-chip.active, html.dark .template-toggle.open {
   background: var(--text-primary);
-  color: #1C1917;
+  color: #0A0E1C;
 }
 html.dark .undo-snackbar {
-  background: #3F3933;
+  background: #26314F;
 }
 
 html.dark .task-row.done {
@@ -1749,10 +1754,10 @@ html.dark .day-card {
 }
 html.dark .day-card.is-today {
   background: var(--card-bg);
-  border-color: rgba(122, 186, 161, 0.3);
+  border-color: rgba(53, 228, 198, 0.35);
 }
 html.dark .day-card.is-today .day-name {
-  color: #7ABAA1;
+  color: #35E4C6;
 }
 html.dark .empty {
   background: rgba(255, 255, 255, 0.04);
@@ -1795,13 +1800,13 @@ html.dark .modal-wrap {
 /* Login screen */
 html.dark .login-wrap {
   background:
-    radial-gradient(520px 380px at 85% 0%, rgba(255, 197, 61, 0.08), transparent 70%),
-    radial-gradient(480px 360px at 0% 20%, rgba(56, 189, 248, 0.07), transparent 70%),
-    radial-gradient(500px 400px at 100% 90%, rgba(255, 94, 122, 0.06), transparent 70%),
-    radial-gradient(circle at top left, #221E1A, #15120F);
+    radial-gradient(520px 380px at 85% 0%, rgba(53, 228, 198, 0.10), transparent 70%),
+    radial-gradient(480px 360px at 0% 20%, rgba(139, 124, 255, 0.10), transparent 70%),
+    radial-gradient(500px 400px at 100% 90%, rgba(88, 180, 255, 0.07), transparent 70%),
+    radial-gradient(circle at top left, #0F1526, #070A14);
 }
 html.dark .login-card {
-  background: rgba(42, 37, 33, 0.85);
+  background: rgba(18, 26, 48, 0.85);
   border-color: rgba(255, 255, 255, 0.08);
 }
 html.dark .login-avatar {
@@ -1988,15 +1993,17 @@ html.dark .assign-row::-webkit-scrollbar-thumb {
   font-size: 16.5px;
   font-weight: 800;
   color: var(--text-secondary);
-  background: rgba(28, 25, 23, 0.06);
+  background: rgba(19, 26, 49, 0.06);
   cursor: pointer;
   transition: var(--transition-spring);
 }
-html.dark .kid-tab { background: rgba(255, 255, 255, 0.08); }
+/* :not(.active) so this doesn't out-specify (and clobber) the gradient on the
+   active tab in dark mode. */
+html.dark .kid-tab:not(.active) { background: rgba(255, 255, 255, 0.08); }
 .kid-tab.active {
   background: var(--accent-grad);
   color: #fff;
-  box-shadow: 0 4px 12px rgba(255, 94, 122, 0.35);
+  box-shadow: 0 4px 12px rgba(109, 92, 240, 0.35);
   transform: scale(1.03);
 }
 
@@ -2041,7 +2048,7 @@ html.dark .kid-tab { background: rgba(255, 255, 255, 0.08); }
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  border: 3px solid rgba(28, 25, 23, 0.12);
+  border: 3px solid rgba(19, 26, 49, 0.12);
   background: transparent;
   flex-shrink: 0;
   cursor: pointer;
@@ -2279,7 +2286,7 @@ html.dark .kid-check { border-color: rgba(255, 255, 255, 0.18); }
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(28, 25, 23, 0.45);
+  background: rgba(19, 26, 49, 0.45);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   animation: kidFadeIn 0.3s ease;

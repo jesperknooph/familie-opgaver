@@ -6,11 +6,14 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // The fixed set of family users. Shared with app.js so there's one source of truth.
+// Default accents follow the Nordlys palette: vivid enough to glow on the
+// night cards, deep enough to read on white. A member's own chosen look
+// (kid mode "Vælg dit look") still wins over these.
 export const MEMBERS = [
-  { name: "Jesper", color: "#3D6B5C", admin: true },
-  { name: "Line", color: "#B5563C", admin: true },
-  { name: "Anker", color: "#2E7DAF" },
-  { name: "Edith", color: "#7C5CFF" },
+  { name: "Jesper", color: "#1CA88F", admin: true },
+  { name: "Line", color: "#E8734F", admin: true },
+  { name: "Anker", color: "#3E97E8" },
+  { name: "Edith", color: "#9B6FF2" },
 ];
 
 const STORAGE_KEY = "familie-opgaver:user";

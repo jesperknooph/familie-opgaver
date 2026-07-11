@@ -1,4 +1,4 @@
-const CACHE_NAME = "familie-opgaver-v28";
+const CACHE_NAME = "familie-opgaver-v32";
 const ASSETS = [
   "./",
   "./index.html",
@@ -15,8 +15,12 @@ const ASSETS = [
 ];
 
 self.addEventListener("install", (event) => {
+  // cache: "reload" bypasses the browser's HTTP cache, so a new cache version
+  // is guaranteed to hold the freshly deployed files — never a stale mix.
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME).then((cache) =>
+      cache.addAll(ASSETS.map((a) => new Request(a, { cache: "reload" })))
+    )
   );
   self.skipWaiting();
 });
