@@ -1,10 +1,11 @@
-const CACHE_NAME = "familie-opgaver-v37";
+const CACHE_NAME = "familie-opgaver-v38";
 const ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
   "./auth.js",
+  "./icons.js",
   "./state.js",
   "./utils.js",
   "./db-service.js",
