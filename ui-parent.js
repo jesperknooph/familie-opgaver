@@ -1,0 +1,1183 @@
+import { doc, setDoc, updateDoc, deleteDoc, deleteField, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { state } from "./state.js";
+import {
+  escapeHtml,
+  icon,
+  colorFor,
+  faceFor,
+  ymd,
+  parseYmd,
+  addDays,
+  startOfWeek,
+  nextInRotation,
+  byTimeThenRecent,
+  isoWeek,
+  uid,
+  DAY_NAMES,
+  MONTHS,
+} from "./utils.js";
+import { MEMBERS, isAdmin, resetPin, signOut } from "./auth.js";
+import { TASK_TEMPLATES } from "./templates.js";
+import { confettiBurst, toggleTheme, updateWithTransition } from "./ui-common.js";
+import {
+  tasksCol,
+  completionsCol,
+  payoutsCol,
+  toggleDone,
+  removeTask,
+  clearDone,
+} from "./db-service.js";
+import { renderIcon } from "./icons.js";
+
+export function renderParentMode() {
+  if (!document.getElementById("openAdd")) {
+    renderShell();
+  }
+
+  // Update sync status
+  const syncStatus = document.getElementById("syncStatus");
+  if (syncStatus) {
+    syncStatus.title = state.connected ? "Forbundet" : "Forbinder...";
+    syncStatus.innerHTML = `
+      <span class="sync-dot ${state.connected ? "" : "pulse"}"></span>
+      <span class="sync-text">${state.connected ? "synkroniseret" : "forbinder"}</span>
+    `;
+  }
+
+  // Update counts
+  const openCount = state.tasks.filter((t) => !t.done).length;
+  const doneCount = state.tasks.length - openCount;
+  const countsElement = document.getElementById("taskCounts");
+  if (countsElement) {
+    countsElement.textContent = 
+      openCount === 0 ? "Alt er gjort." : `${openCount} tilbage · ${doneCount} klaret`;
+  }
+
+  // Update user bar
+  const userBar = document.getElementById("userBar");
+  if (userBar) {
+    const weekMoneyAll = state.completions.reduce((s, c) => s + (c.money || 0), 0);
+    const totalEarnedPast = state.allowEarnedPast ? Object.values(state.allowEarnedPast).reduce((a, b) => a + b, 0) : 0;
+    const totalPaidOut = state.allowPaidOut ? Object.values(state.allowPaidOut).reduce((a, b) => a + b, 0) : 0;
+    const famBalance =
+      state.allowEarnedPast !== null && state.allowPaidOut !== null
+        ? totalEarnedPast + weekMoneyAll - totalPaidOut
+        : null;
+    const balanceBit = famBalance > 0 ? ` · ${famBalance} kr` : "";
+    
+    userBar.innerHTML = `
+      <span class="user-me">
+        <span class="user-dot" style="background:${colorFor(state.currentUser.name)}"></span>
+        Logget ind som <strong>${state.currentUser.name}</strong>
+      </span>
+      <span class="user-actions">
+        <button class="admin-btn" id="payoutBtn">${renderIcon("coins", { size: 16 })} Lommepenge${balanceBit}</button>
+        <button class="theme-btn" id="settingsBtn" title="Indstillinger" aria-label="Indstillinger">${renderIcon("settings", { size: 18 })}</button>
+      </span>
+    `;
+    document.getElementById("payoutBtn").onclick = openPayoutSheet;
+    document.getElementById("settingsBtn").onclick = openSettingsSheet;
+  }
+
+  // Update view toggle active classes
+  document.querySelectorAll("[data-view]").forEach((el) => {
+    if (el.dataset.view === state.view) {
+      el.classList.add("active");
+    } else {
+      el.classList.remove("active");
+    }
+  });
+
+  // Update avatar-row counts & filter status
+  const avatarRow = document.getElementById("avatarRow");
+  if (avatarRow) {
+    const counts = MEMBERS.reduce((acc, m) => {
+      acc[m.name] = state.tasks.filter((t) => t.assignedTo === m.name && !t.done).length;
+      return acc;
+    }, {});
+    avatarRow.innerHTML = MEMBERS.map(
+      (m) => {
+        const faceVal = faceFor(m.name);
+        const faceHtml = faceVal.length === 1 ? faceVal : renderIcon(faceVal, { size: 18 });
+        return `
+        <button class="avatar ${state.filter === m.name ? "active" : ""}" data-filter="${m.name}"
+          style="border-color:${colorFor(m.name)}; background:${state.filter === m.name ? colorFor(m.name) : "var(--card-bg)"}; view-transition-name: avatar-${m.name};">
+          <span class="avatar-initial" style="color:${state.filter === m.name ? "#fff" : colorFor(m.name)}">${faceHtml}</span>
+          <span class="avatar-badge" style="background:${state.filter === m.name ? "#fff" : colorFor(m.name)}; color:${state.filter === m.name ? colorFor(m.name) : "#fff"};">${counts[m.name]}</span>
+        </button>`;
+      }
+    ).join("");
+
+    document.querySelectorAll("[data-filter]").forEach((el) => {
+      el.onclick = () => {
+        const name = el.dataset.filter;
+        state.filter = state.filter === name ? "alle" : name;
+        updateWithTransition();
+      };
+    });
+  }
+
+  // Update list-container (Liste or Uge or I dag)
+  const visible = state.tasks.filter((t) => (state.filter === "alle" ? true : t.assignedTo === state.filter));
+  const listVisible = visible
+    .slice()
+    .sort((a, b) => Number(a.done) - Number(b.done) || (b.ts || 0) - (a.ts || 0));
+
+  const listContainer = document.getElementById("list-container");
+  if (listContainer) {
+    if (state.view === "uge") {
+      listContainer.innerHTML = weekSection(visible);
+    } else if (state.view === "idag") {
+      listContainer.innerHTML = todaySection(visible);
+    } else {
+      listContainer.innerHTML = listSection(listVisible);
+    }
+  }
+
+  renderEarnings();
+
+  // Update footer container
+  const footerContainer = document.getElementById("footer-container");
+  if (footerContainer) {
+    footerContainer.innerHTML = `
+      ${
+        doneCount > 0
+          ? `<div class="footer"><button class="clear-button" id="clearDone">Ryd klarede (${doneCount})</button></div>`
+          : ""
+      }
+      <p class="footer-note">Deles automatisk med hele familien</p>
+    `;
+  }
+
+  // Attach dynamic handlers
+  const clearFilterEl = document.getElementById("clearFilter");
+  if (clearFilterEl) clearFilterEl.onclick = () => { state.filter = "alle"; updateWithTransition(); };
+
+  document.querySelectorAll("[data-toggle]").forEach((el) => {
+    el.onclick = () => {
+      const t = state.tasks.find((x) => x.id === el.dataset.toggle);
+      if (t && !t.done) confettiBurst(el, colorFor(t.assignedTo));
+      toggleDone(el.dataset.toggle);
+    };
+  });
+  document.querySelectorAll("[data-delete]").forEach((el) => {
+    el.onclick = () => removeTask(el.dataset.delete);
+  });
+  document.querySelectorAll("[data-edit]").forEach((el) => {
+    el.onclick = () => {
+      const t = state.tasks.find((x) => x.id === el.dataset.edit);
+      if (t) openEditSheet(t);
+    };
+  });
+  document.querySelectorAll("[data-week]").forEach((el) => {
+    el.onclick = () => {
+      state.weekOffset += Number(el.dataset.week);
+      updateWithTransition();
+    };
+  });
+  const weekTodayEl = document.getElementById("weekToday");
+  if (weekTodayEl) weekTodayEl.onclick = () => { state.weekOffset = 0; updateWithTransition(); };
+
+  const clearDoneEl = document.getElementById("clearDone");
+  if (clearDoneEl) clearDoneEl.onclick = clearDone;
+}
+
+function renderShell() {
+  const appContainer = document.getElementById("app");
+  appContainer.innerHTML = `
+    <header class="header">
+      <div class="header-top">
+        <h1 class="h1">Opgaver</h1>
+        <div class="sync-wrap" id="syncStatus"></div>
+      </div>
+      <p class="subtitle" id="taskCounts"></p>
+    </header>
+
+    <div class="user-bar" id="userBar"></div>
+
+    <div class="view-toggle" id="viewToggle">
+      <button class="view-btn" data-view="idag">${renderIcon("sun", { size: 15 })} I dag</button>
+      <button class="view-btn" data-view="liste">${renderIcon("list", { size: 15 })} Liste</button>
+      <button class="view-btn" data-view="uge">${renderIcon("calendar", { size: 15 })} Uge</button>
+    </div>
+
+    <section class="avatar-row" id="avatarRow"></section>
+
+    <section class="earnings-row" id="earningsRow"></section>
+
+    <button class="add-trigger" id="openAdd">
+      <span class="add-trigger-plus">${icon("plus", "#fff", 16)}</span>
+      <span class="add-trigger-text">Ny opgave …</span>
+    </button>
+
+    <div id="list-container"></div>
+    <div id="footer-container"></div>
+  `;
+
+  document.getElementById("openAdd").onclick = openAddSheet;
+
+  document.querySelectorAll("[data-view]").forEach((el) => {
+    el.onclick = () => {
+      state.view = el.dataset.view;
+      updateWithTransition();
+    };
+  });
+}
+
+export function renderEarnings() {
+  const row = document.getElementById("earningsRow");
+  if (!row) return;
+  const moneyInUse =
+    state.tasks.some((t) => t.money) || state.completions.some((c) => c.money);
+  const weekMoney = {};
+  MEMBERS.forEach((m) => {
+    weekMoney[m.name] = 0;
+  });
+  state.completions.forEach((c) => {
+    if (c.name in weekMoney) {
+      weekMoney[c.name] += c.money || 0;
+    }
+  });
+  const shown = MEMBERS.filter((m) => weekMoney[m.name] > 0);
+  if (!moneyInUse || shown.length === 0) {
+    row.innerHTML = "";
+    row.classList.remove("show");
+    return;
+  }
+  row.classList.add("show");
+  row.innerHTML =
+    `<span class="earnings-label">${renderIcon("coins", { size: 16 })} Denne uge</span>` +
+    shown.map((m) => {
+      const kr = `<span class="earnings-money">${weekMoney[m.name]} kr</span>`;
+      return `<span class="earnings-chip" style="color:${colorFor(m.name)}">${m.name} ${kr}</span>`;
+    }).join("");
+}
+
+export function taskRow(t) {
+  const emojiTile = t.emoji
+    ? `<span class="task-emoji" style="background:${colorFor(t.assignedTo)}1A">${renderIcon(t.emoji, { size: 18, color: colorFor(t.assignedTo) })}</span>`
+    : "";
+  const rotationBit =
+    t.rotation && t.rotation.length > 1
+      ? `<span class="task-repeat">${renderIcon("rotate", { size: 13 })} ${escapeHtml(nextInRotation(t))} er næste</span>`
+      : "";
+  return `
+    <div class="task-row ${t.done ? "done" : ""}" style="border-left-color:${colorFor(t.assignedTo)}; view-transition-name: task-${t.id};">
+      <button class="check-button" data-toggle="${t.id}" aria-label="${t.done ? "Fjern flueben" : "Kryds af"}">
+        ${t.done ? icon("check", colorFor(t.assignedTo)) : icon("circle", "#D6CFE0")}
+      </button>
+      ${emojiTile}
+      <div class="task-body" data-edit="${t.id}" title="Tryk for at rette">
+        <span class="task-label ${t.done ? "done" : ""}">${escapeHtml(t.label)}</span>
+        <span class="task-assignee" style="color:${colorFor(t.assignedTo)}">${t.assignedTo}${
+          t.repeat ? `<span class="task-repeat">${renderIcon("repeat", { size: 13 })} ${state.REPEAT_LABELS[t.repeat] || ""}</span>` : ""
+        }${rotationBit}</span>
+      </div>
+      ${t.money ? `<span class="task-money">${renderIcon("coins", { size: 14 })} ${t.money} kr</span>` : ""}
+      ${t.time ? `<span class="task-time ${t.alarm ? "has-alarm" : ""}">${renderIcon(t.alarm ? "bell" : "clock", { size: 14 })} ${t.time}</span>` : ""}
+      <button class="delete-button" data-delete="${t.id}" aria-label="Slet opgave">${icon("trash", "#D6CFE0", 14)}</button>
+    </div>`;
+}
+
+export function listSection(visible) {
+  return `
+    <section class="list">
+      ${
+        state.filter !== "alle"
+          ? `<div class="filter-note">${state.filter} · <span class="filter-clear" id="clearFilter">vis alle</span></div>`
+          : ""
+      }
+      ${
+        visible.length === 0
+          ? `<div class="empty"><span class="empty-emoji">${renderIcon("sparkles", { size: 36 })}</span>Ingen opgaver her.</div>`
+          : visible.map(taskRow).join("")
+      }
+    </section>`;
+}
+
+export function todaySection(visible) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = ymd(today);
+
+  const sortOpenFirst = (a, b) =>
+    Number(a.done) - Number(b.done) || (b.ts || 0) - (a.ts || 0);
+
+  const dueToday = visible.filter((t) => t.due === todayStr).sort(byTimeThenRecent);
+  const overdue = visible
+    .filter((t) => t.due && t.due < todayStr && !t.done)
+    .sort((a, b) => (a.due < b.due ? -1 : 1));
+  const noDate = visible.filter((t) => !t.due).sort(sortOpenFirst);
+
+  const dayName = DAY_NAMES[(today.getDay() + 6) % 7];
+  const dateLabel = `${dayName} ${today.getDate()}. ${MONTHS[today.getMonth()]}`;
+  const todoCount = overdue.length + dueToday.filter((t) => !t.done).length + noDate.filter((t) => !t.done).length;
+
+  const nothing = overdue.length === 0 && dueToday.length === 0 && noDate.length === 0;
+
+  const totalCount = overdue.length + dueToday.length + noDate.length;
+  const doneCount = totalCount - todoCount;
+  const pct = totalCount ? Math.round((doneCount / totalCount) * 100) : 0;
+
+  return `
+    <section class="today">
+      <div class="today-head">
+        <span class="today-day">${dateLabel}</span>
+        <span class="today-count">${
+          todoCount === 0 ? "alt klaret 🎉" : `${todoCount} at gøre`
+        }</span>
+      </div>
+
+      ${
+        totalCount
+          ? `<div class="today-progress ${pct === 100 ? "complete" : ""}">
+              <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+              <span class="progress-count">${renderIcon(pct === 100 ? "trophy" : "checkCircle", { size: 16 })} ${doneCount}/${totalCount}</span>
+            </div>`
+          : ""
+      }
+
+      ${
+        state.filter !== "alle"
+          ? `<div class="filter-note">${state.filter} · <span class="filter-clear" id="clearFilter">vis alle</span></div>`
+          : ""
+      }
+
+      ${
+        overdue.length
+          ? `<div class="section-label overdue">Forsinket</div>${overdue.map(taskRow).join("")}`
+          : ""
+      }
+
+      ${
+        dueToday.length
+          ? `<div class="section-label">I dag</div>${dueToday.map(taskRow).join("")}`
+          : ""
+      }
+
+      ${
+        noDate.length
+          ? `<div class="section-label">Når du kan</div>${noDate.map(taskRow).join("")}`
+          : ""
+      }
+
+      ${nothing ? `<div class="empty"><span class="empty-emoji">${renderIcon("balloon", { size: 36 })}</span>Ingen opgaver i dag – fri leg!</div>` : ""}
+    </section>`;
+}
+
+export function weekSection(visible) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = ymd(today);
+  const start = startOfWeek(addDays(today, state.weekOffset * 7));
+  const end = addDays(start, 6);
+
+  const overdue = state.weekOffset === 0
+    ? visible.filter((t) => t.due && t.due < todayStr && !t.done)
+    : [];
+  const noDate = state.weekOffset === 0 ? visible.filter((t) => !t.due) : [];
+
+  const rangeLabel = `${start.getDate()}.–${end.getDate()}. ${MONTHS[end.getMonth()]}`;
+
+  let days = "";
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(start, i);
+    const dStr = ymd(d);
+    const isToday = dStr === todayStr;
+    const dayTasks = visible
+      .filter((t) => t.due === dStr)
+      .sort(byTimeThenRecent);
+    days += `
+      <div class="day-card ${isToday ? "is-today" : ""}">
+        <div class="day-head">
+          <span class="day-name">${DAY_NAMES[i]}${isToday ? ` <span class="today-pill">i dag</span>` : ""}</span>
+          <span class="day-date">${d.getDate()}. ${MONTHS[d.getMonth()]}</span>
+        </div>
+        ${dayTasks.length === 0 ? `<div class="day-empty">—</div>` : dayTasks.map(taskRow).join("")}
+      </div>`;
+  }
+
+  return `
+    <section class="week">
+      <div class="week-nav">
+        <button class="week-nav-btn" data-week="-1" aria-label="Forrige uge">${icon("chevL", "#6B6478", 18)}</button>
+        <button class="week-title" id="weekToday">
+          <span class="week-num">Uge ${isoWeek(start)}</span>
+          <span class="week-range">${rangeLabel}${state.weekOffset !== 0 ? " · tilbage til i dag" : ""}</span>
+        </button>
+        <button class="week-nav-btn" data-week="1" aria-label="Næste uge">${icon("chevR", "#6B6478", 18)}</button>
+      </div>
+
+      ${
+        state.filter !== "alle"
+          ? `<div class="filter-note">${state.filter} · <span class="filter-clear" id="clearFilter">vis alle</span></div>`
+          : ""
+      }
+
+      ${
+        overdue.length
+          ? `<div class="section-label overdue">Forfaldne</div>${overdue
+              .sort((a, b) => (a.due < b.due ? -1 : 1))
+              .map(taskRow)
+              .join("")}`
+          : ""
+      }
+
+      ${days}
+
+      ${
+        noDate.length
+          ? `<div class="section-label">Uden dato</div>${noDate
+              .sort((a, b) => Number(a.done) - Number(b.done) || (b.ts || 0) - (a.ts || 0))
+              .map(taskRow)
+              .join("")}`
+          : ""
+      }
+    </section>`;
+}
+
+export function openAddSheet() {
+  let host = document.getElementById("addSheet");
+  if (!host) {
+    host = document.createElement("div");
+    host.id = "addSheet";
+    document.body.appendChild(host);
+  }
+
+  let due = "";
+  let time = "";
+  let alarm = false;
+  let repeat = null;
+  let assignees = [state.currentUser.name];
+  let showTpl = false;
+  let busy = false;
+
+  function close() {
+    host.remove();
+  }
+
+  host.innerHTML = `
+    <div class="modal-wrap">
+      <div class="modal-card edit-card">
+        <div class="modal-head">
+          <h2 class="modal-title">Ny opgave</h2>
+          <button class="modal-close" data-close="1" aria-label="Luk">✕</button>
+        </div>
+
+        <button class="template-toggle" id="addTplToggle"></button>
+        <div class="template-gallery" id="addTplGallery"></div>
+
+        <div class="label-row edit-label-row">
+          <input class="input edit-emoji-input" id="addEmoji" maxlength="16" placeholder="Ikon" />
+          <input class="input" id="addLabel" placeholder="Hvad skal der gøres?" />
+        </div>
+
+        <div class="add-meta">
+          <span class="meta-group">
+            <span class="date-field-label">Forfald</span>
+            <input type="date" class="date-input" id="addDue" />
+          </span>
+          <span class="meta-group">
+            <span class="date-field-label">Kl.</span>
+            <input type="time" class="date-input time-input" id="addTime" />
+          </span>
+          <button class="alarm-toggle" id="addAlarm"></button>
+        </div>
+
+        <div class="repeat-row" id="addRepeatRow"></div>
+        <div class="repeat-row money-row">
+          <span class="repeat-row-label">Kr</span>
+          <div class="money-field">
+            <input type="number" min="0" max="1000" step="1" inputmode="numeric" class="input money-input" id="addMoneyInput" placeholder="0" />
+            <span class="money-suffix">kr</span>
+          </div>
+        </div>
+        <div class="assign-hint" id="addAssignHint"></div>
+        <div class="assign-row edit-assign-row" id="addAssignRow"></div>
+
+        <div class="sheet-actions">
+          <button class="btn-ghost" data-close="1">Annullér</button>
+          <button class="btn-primary" id="addSave">Tilføj</button>
+        </div>
+      </div>
+    </div>`;
+
+  const dueInput = host.querySelector("#addDue");
+  const timeInput = host.querySelector("#addTime");
+  dueInput.onchange = () => { due = dueInput.value; };
+  timeInput.onchange = () => { time = timeInput.value; drawAlarm(); };
+
+  function drawTemplates() {
+    const toggle = host.querySelector("#addTplToggle");
+    toggle.innerHTML = `${renderIcon("task", { size: 16 })} Skabeloner ${showTpl ? "▴" : "▾"}`;
+    toggle.classList.toggle("open", showTpl);
+    toggle.onclick = () => {
+      showTpl = !showTpl;
+      drawTemplates();
+    };
+    const gallery = host.querySelector("#addTplGallery");
+    if (!showTpl) {
+      gallery.innerHTML = "";
+      gallery.classList.remove("open");
+      return;
+    }
+    gallery.classList.add("open");
+    gallery.innerHTML = TASK_TEMPLATES.map(
+      (tpl, i) => `
+        <button class="template-chip" data-template="${i}">
+          <span class="template-emoji">${renderIcon(tpl.emoji, { size: 18 })}</span>
+          <span class="template-label">${escapeHtml(tpl.label)}</span>
+        </button>`
+    ).join("");
+    gallery.querySelectorAll("[data-template]").forEach((el) => {
+      el.onclick = () => {
+        const tpl = TASK_TEMPLATES[Number(el.dataset.template)];
+        host.querySelector("#addEmoji").value = tpl.emoji;
+        host.querySelector("#addLabel").value = tpl.label;
+        host.querySelector("#addMoneyInput").value = tpl.money || "";
+        drawChips();
+        showTpl = false;
+        drawTemplates();
+      };
+    });
+  }
+
+  function drawAlarm() {
+    const btn = host.querySelector("#addAlarm");
+    const supported = "Notification" in window;
+    btn.classList.toggle("active", alarm);
+    btn.classList.toggle("disabled", !supported);
+    btn.innerHTML = `${renderIcon("bell", { size: 15 })} ${alarm ? "Alarm til" : "Alarm"}`;
+    btn.onclick = async () => {
+      if (!supported) return alert("Denne enhed understøtter ikke notifikationer.");
+      if (alarm) { alarm = false; return drawAlarm(); }
+      if (Notification.permission === "denied")
+        return alert("Notifikationer er blokeret. Tillad dem i browserens indstillinger for siden.");
+      if (Notification.permission === "default") {
+        const perm = await Notification.requestPermission();
+        if (perm !== "granted") return;
+      }
+      alarm = true;
+      drawAlarm();
+    };
+  }
+
+  function drawChips() {
+    host.querySelector("#addRepeatRow").innerHTML = `
+      <span class="repeat-row-label">Gentag</span>
+      <div class="repeat-chips">
+        ${state.REPEAT_OPTIONS.map(
+          (o) => `<button class="repeat-chip ${repeat === o.id ? "active" : ""}" data-repeat="${o.id}">${o.label}</button>`
+        ).join("")}
+      </div>`;
+    
+    const admin = isAdmin(state.currentUser);
+    const assignable = admin ? MEMBERS : MEMBERS.filter((m) => m.name === state.currentUser.name);
+    host.querySelector("#addAssignRow").innerHTML = assignable.map(
+      (m) => `<button class="assign-chip ${assignees.includes(m.name) ? "active" : ""}" data-assign="${m.name}"
+        style="background:${assignees.includes(m.name) ? colorFor(m.name) : "var(--bg-app)"}">${m.name}</button>`
+    ).join("");
+    host.querySelector("#addAssignHint").textContent = repeat && admin
+      ? assignees.length > 1
+        ? `🔄 Skiftes: ${assignees.join(" → ")}`
+        : "Tip: vælg flere personer, så skiftes de"
+      : "";
+
+    host.querySelectorAll("[data-repeat]").forEach((el) => {
+      el.onclick = () => {
+        const val = el.dataset.repeat;
+        repeat = val === "null" ? null : val;
+        if (!repeat && assignees.length > 1) assignees = [assignees[0]];
+        drawChips();
+      };
+    });
+    host.querySelectorAll("[data-assign]").forEach((el) => {
+      el.onclick = () => {
+        const name = el.dataset.assign;
+        if (!repeat) {
+          assignees = [name];
+        } else if (assignees.includes(name)) {
+          if (assignees.length > 1) assignees = assignees.filter((n) => n !== name);
+        } else {
+          assignees = [...assignees, name];
+        }
+        drawChips();
+      };
+    });
+  }
+
+  host.querySelectorAll("[data-close]").forEach((el) => (el.onclick = close));
+  host.querySelector(".modal-wrap").onclick = (e) => {
+    if (e.target === e.currentTarget) close();
+  };
+
+  async function save() {
+    if (busy) return;
+    const label = host.querySelector("#addLabel").value.trim();
+    if (!label) return alert("Opgaven skal have en tekst.");
+    const emoji = host.querySelector("#addEmoji").value.trim();
+    const money = Number(host.querySelector("#addMoneyInput").value) || null;
+    const needsAnchor = repeat || (alarm && time);
+    const finalDue = needsAnchor && !due ? ymd(new Date()) : due || null;
+    const data = {
+      label,
+      emoji: emoji || null,
+      assignedTo: assignees[0],
+      done: false,
+      due: finalDue,
+      time: time || null,
+      alarm: !!(alarm && time),
+      repeat: repeat || null,
+      ts: Date.now(),
+    };
+    if (repeat && assignees.length > 1) data.rotation = [...assignees];
+    if (money) data.money = money;
+    busy = true;
+    const saveBtn = host.querySelector("#addSave");
+    saveBtn.textContent = "…";
+    try {
+      await setDoc(doc(tasksCol, uid()), data);
+      close();
+    } catch (e) {
+      console.error("Adding task failed:", e);
+      busy = false;
+      saveBtn.textContent = "Tilføj";
+      alert("Kunne ikke gemme opgaven. Er du online?");
+    }
+  }
+
+  host.querySelector("#addSave").onclick = save;
+  host.querySelector("#addLabel").onkeydown = (e) => {
+    if (e.key === "Enter") save();
+  };
+
+  drawTemplates();
+  drawAlarm();
+  drawChips();
+}
+
+export function openEditSheet(t) {
+  let host = document.getElementById("editSheet");
+  if (!host) {
+    host = document.createElement("div");
+    host.id = "editSheet";
+    document.body.appendChild(host);
+  }
+
+  let due = t.due || "";
+  let time = t.time || "";
+  let alarm = !!t.alarm;
+  let repeat = t.repeat || null;
+  let assignees = t.rotation && t.rotation.length > 1 ? [...t.rotation] : [t.assignedTo];
+  let busy = false;
+
+  function close() {
+    host.remove();
+  }
+
+  host.innerHTML = `
+    <div class="modal-wrap">
+      <div class="modal-card edit-card">
+        <div class="modal-head">
+          <h2 class="modal-title">Ret opgave</h2>
+          <button class="modal-close" data-close="1" aria-label="Luk">✕</button>
+        </div>
+
+        <div class="label-row edit-label-row">
+          <input class="input edit-emoji-input" id="editEmoji" maxlength="16" placeholder="Ikon" value="${escapeHtml(t.emoji || "")}" />
+          <input class="input" id="editLabel" value="${escapeHtml(t.label)}" />
+        </div>
+
+        <div class="add-meta">
+          <span class="meta-group">
+            <span class="date-field-label">Forfald</span>
+            <input type="date" class="date-input" id="editDue" value="${due}" />
+          </span>
+          <span class="meta-group">
+            <span class="date-field-label">Kl.</span>
+            <input type="time" class="date-input time-input" id="editTime" value="${time}" />
+          </span>
+          <button class="alarm-toggle" id="editAlarm"></button>
+        </div>
+
+        <div class="repeat-row" id="editRepeatRow"></div>
+        <div class="repeat-row money-row">
+          <span class="repeat-row-label">Kr</span>
+          <div class="money-field">
+            <input type="number" min="0" max="1000" step="1" inputmode="numeric" class="input money-input" id="editMoneyInput" placeholder="0" value="${t.money || ""}" />
+            <span class="money-suffix">kr</span>
+          </div>
+        </div>
+        <div class="assign-hint" id="editAssignHint"></div>
+        <div class="assign-row edit-assign-row" id="editAssignRow"></div>
+
+        <div class="sheet-actions">
+          <button class="btn-ghost" data-close="1">Annullér</button>
+          <button class="btn-primary" id="editSave">Gem</button>
+        </div>
+      </div>
+    </div>`;
+
+  const dueInput = host.querySelector("#editDue");
+  const timeInput = host.querySelector("#editTime");
+  dueInput.onchange = () => { due = dueInput.value; };
+  timeInput.onchange = () => { time = timeInput.value; drawAlarm(); };
+
+  function drawAlarm() {
+    const btn = host.querySelector("#editAlarm");
+    const supported = "Notification" in window;
+    btn.classList.toggle("active", alarm);
+    btn.classList.toggle("disabled", !supported);
+    btn.innerHTML = `${renderIcon("bell", { size: 15 })} ${alarm ? "Alarm til" : "Alarm"}`;
+    btn.onclick = async () => {
+      if (!supported) return alert("Denne enhed understøtter ikke notifikationer.");
+      if (alarm) { alarm = false; return drawAlarm(); }
+      if (Notification.permission === "denied")
+        return alert("Notifikationer er blokeret. Tillad dem i browserens indstillinger for siden.");
+      if (Notification.permission === "default") {
+        const perm = await Notification.requestPermission();
+        if (perm !== "granted") return;
+      }
+      alarm = true;
+      drawAlarm();
+    };
+  }
+
+  function drawChips() {
+    host.querySelector("#editRepeatRow").innerHTML = `
+      <span class="repeat-row-label">Gentag</span>
+      <div class="repeat-chips">
+        ${state.REPEAT_OPTIONS.map(
+          (o) => `<button class="repeat-chip ${repeat === o.id ? "active" : ""}" data-repeat="${o.id}">${o.label}</button>`
+        ).join("")}
+      </div>`;
+    
+    const admin = isAdmin(state.currentUser);
+    const shown = admin ? MEMBERS : MEMBERS.filter((m) => assignees.includes(m.name));
+    host.querySelector("#editAssignRow").innerHTML = shown.map(
+      (m) => `<button class="assign-chip ${assignees.includes(m.name) ? "active" : ""}" data-assign="${m.name}"
+        ${admin ? "" : "disabled"} style="background:${assignees.includes(m.name) ? colorFor(m.name) : "var(--bg-app)"}">${m.name}</button>`
+    ).join("");
+    host.querySelector("#editAssignHint").textContent = repeat
+      ? assignees.length > 1
+        ? `🔄 Skiftes: ${assignees.join(" → ")}`
+        : admin
+          ? "Tip: vælg flere personer, så skiftes de"
+          : ""
+      : "";
+
+    host.querySelectorAll("[data-repeat]").forEach((el) => {
+      el.onclick = () => {
+        const val = el.dataset.repeat;
+        repeat = val === "null" ? null : val;
+        if (!repeat && assignees.length > 1)
+          assignees = [admin ? assignees[0] : state.currentUser.name];
+        drawChips();
+      };
+    });
+    if (admin) {
+      host.querySelectorAll("[data-assign]").forEach((el) => {
+        el.onclick = () => {
+          const name = el.dataset.assign;
+          if (!repeat) {
+            assignees = [name];
+          } else if (assignees.includes(name)) {
+            if (assignees.length > 1) assignees = assignees.filter((n) => n !== name);
+          } else {
+            assignees = [...assignees, name];
+          }
+          drawChips();
+        };
+      });
+    }
+  }
+
+  host.querySelectorAll("[data-close]").forEach((el) => (el.onclick = close));
+  host.querySelector(".modal-wrap").onclick = (e) => {
+    if (e.target === e.currentTarget) close();
+  };
+
+  host.querySelector("#editSave").onclick = async () => {
+    if (busy) return;
+    const label = host.querySelector("#editLabel").value.trim();
+    if (!label) return alert("Opgaven skal have en tekst.");
+    const emoji = host.querySelector("#editEmoji").value.trim();
+    const money = Number(host.querySelector("#editMoneyInput").value) || null;
+    const needsAnchor = repeat || (alarm && time);
+    const finalDue = needsAnchor && !due ? ymd(new Date()) : due || null;
+    const rotation = repeat && assignees.length > 1 ? [...assignees] : null;
+    busy = true;
+    const saveBtn = host.querySelector("#editSave");
+    saveBtn.textContent = "…";
+    try {
+      await updateDoc(doc(tasksCol, t.id), {
+        label,
+        emoji: emoji || null,
+        assignedTo: assignees.includes(t.assignedTo) ? t.assignedTo : assignees[0],
+        due: finalDue,
+        time: time || null,
+        alarm: !!(alarm && time),
+        repeat: repeat,
+        rotation: rotation || deleteField(),
+        money: money || deleteField(),
+      });
+      close();
+    } catch (e) {
+      console.error("Saving task failed:", e);
+      busy = false;
+      saveBtn.textContent = "Gem";
+      alert("Kunne ikke gemme ændringerne. Er du online?");
+    }
+  };
+
+  drawAlarm();
+  drawChips();
+}
+
+export function openSettingsSheet() {
+  let host = document.getElementById("settingsSheet");
+  if (!host) {
+    host = document.createElement("div");
+    host.id = "settingsSheet";
+    document.body.appendChild(host);
+  }
+
+  function close() {
+    host.remove();
+  }
+
+  function draw() {
+    const dark = document.documentElement.classList.contains("dark");
+    host.innerHTML = `
+      <div class="modal-wrap">
+        <div class="modal-card">
+          <div class="modal-head">
+            <h2 class="modal-title">Indstillinger</h2>
+            <button class="modal-close" data-close="1" aria-label="Luk">✕</button>
+          </div>
+          <div class="settings-list">
+            <button class="settings-row" id="setTheme">${renderIcon(dark ? "sun" : "moon", { size: 16 })} ${dark ? "Skift til lyst tema" : "Skift til mørkt tema"}</button>
+            <button class="settings-row" id="setResetPin">${renderIcon("key", { size: 16 })} Nulstil PIN-kode</button>
+            <button class="settings-row danger" id="setLogout">${renderIcon("logout", { size: 16 })} Log ud</button>
+          </div>
+        </div>
+      </div>`;
+    host.querySelector("[data-close]").onclick = close;
+    host.querySelector(".modal-wrap").onclick = (e) => {
+      if (e.target === e.currentTarget) close();
+    };
+    host.querySelector("#setTheme").onclick = () => {
+      toggleTheme();
+      draw();
+    };
+    host.querySelector("#setResetPin").onclick = () => {
+      close();
+      openResetPanel();
+    };
+    host.querySelector("#setLogout").onclick = signOut;
+  }
+
+  draw();
+}
+
+export function openResetPanel() {
+  let host = document.getElementById("pinReset");
+  if (!host) {
+    host = document.createElement("div");
+    host.id = "pinReset";
+    document.body.appendChild(host);
+  }
+  const others = MEMBERS.filter((m) => m.name !== state.currentUser.name);
+  const status = {};
+
+  function close() {
+    host.remove();
+  }
+
+  async function doReset(name) {
+    if (!confirm(`Nulstil PIN for ${name}? De vælger en ny ved næste login.`)) return;
+    status[name] = "busy";
+    draw();
+    try {
+      await resetPin(name);
+      status[name] = "done";
+    } catch (e) {
+      console.error("PIN reset failed:", e);
+      delete status[name];
+      alert("Kunne ikke nulstille PIN. Er du online?");
+    }
+    draw();
+  }
+
+  function draw() {
+    host.innerHTML = `
+      <div class="modal-wrap">
+        <div class="modal-card">
+          <div class="modal-head">
+            <h2 class="modal-title">Nulstil PIN-kode</h2>
+            <button class="modal-close" data-close="1" aria-label="Luk">✕</button>
+          </div>
+          <p class="modal-sub">Vælg hvem der skal vælge en ny PIN ved næste login.</p>
+          <div class="reset-list">
+            ${others
+              .map((m) => {
+                const st = status[m.name];
+                const right =
+                  st === "done"
+                    ? `<span class="reset-done">Nulstillet ✓</span>`
+                    : `<button class="reset-btn" data-reset="${m.name}" ${st === "busy" ? "disabled" : ""}>${st === "busy" ? "…" : "Nulstil"}</button>`;
+                return `
+                  <div class="reset-row">
+                    <span class="reset-name">
+                      <span class="user-dot" style="background:${colorFor(m.name)}"></span>${m.name}
+                    </span>
+                    ${right}
+                  </div>`;
+              })
+              .join("")}
+          </div>
+          <p class="modal-note">Adgangen bevares — personen bliver blot bedt om at vælge en ny PIN næste gang.</p>
+        </div>
+      </div>`;
+
+    host.querySelector("[data-close]").onclick = close;
+    host.querySelectorAll("[data-reset]").forEach((el) => {
+      el.onclick = () => doReset(el.dataset.reset);
+    });
+  }
+
+  draw();
+}
+
+export async function openPayoutSheet() {
+  let host = document.getElementById("payoutSheet");
+  if (!host) {
+    host = document.createElement("div");
+    host.id = "payoutSheet";
+    document.body.appendChild(host);
+  }
+
+  let earned = {};
+  let earnings = [];
+  let payouts = [];
+  let loading = true;
+  let error = false;
+  let payingFor = null;
+  const histOpen = {};
+  const earnOpen = {};
+  const busy = {};
+
+  function close() {
+    host.remove();
+  }
+
+  async function load() {
+    loading = true;
+    error = false;
+    draw();
+    try {
+      const [compSnap, paySnap] = await Promise.all([
+        getDocs(query(completionsCol, where("money", ">", 0))),
+        getDocs(payoutsCol),
+      ]);
+      earned = {};
+      earnings = [];
+      MEMBERS.forEach((m) => (earned[m.name] = 0));
+      compSnap.forEach((d) => {
+        const c = d.data();
+        if (c.name in earned) {
+          earned[c.name] += c.money || 0;
+          earnings.push(c);
+        }
+      });
+      payouts = paySnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    } catch (e) {
+      console.error("Loading payouts failed (are the new rules published?):", e);
+      error = true;
+    }
+    loading = false;
+    draw();
+  }
+
+  function paidFor(name) {
+    return payouts
+      .filter((p) => p.name === name)
+      .reduce((s, p) => s + (p.amount || 0), 0);
+  }
+
+  async function pay(name, amount) {
+    if (busy[name] || !(amount > 0)) return;
+    busy[name] = true;
+    payingFor = null;
+    draw();
+    try {
+      await setDoc(doc(payoutsCol, uid()), {
+        name,
+        amount,
+        date: ymd(new Date()),
+        ts: Date.now(),
+      });
+    } catch (e) {
+      console.error("Payout failed:", e);
+      alert("Kunne ikke gemme udbetalingen. Er du online?");
+    }
+    busy[name] = false;
+    await load();
+  }
+
+  async function undo(id) {
+    if (!confirm("Fjern denne udbetaling? Beløbet lægges tilbage til gode.")) return;
+    try {
+      await deleteDoc(doc(payoutsCol, id));
+    } catch (e) {
+      console.error("Undo payout failed:", e);
+      alert("Kunne ikke fjerne udbetalingen. Er du online?");
+    }
+    await load();
+  }
+
+  function fmtDate(ds) {
+    const d = parseYmd(ds);
+    return `${d.getDate()}. ${MONTHS[d.getMonth()]}`;
+  }
+
+  function draw() {
+    const active = MEMBERS.filter(
+      (m) => (earned[m.name] || 0) > 0 || paidFor(m.name) > 0
+    );
+
+    let body;
+    if (loading) {
+      body = `<p class="modal-sub">Henter…</p>`;
+    } else if (error) {
+      body = `<p class="modal-sub">Kunne ikke hente lommepenge. Er de nye regler udgivet i Firebase?</p>`;
+    } else if (active.length === 0) {
+      body = `<div class="payout-empty"><span class="payout-empty-emoji">${renderIcon("coins", { size: 36 })}</span>Ingen optjente lommepenge endnu.<br>Sæt et kr-beløb på en opgave, så begynder det at tælle.</div>`;
+    } else {
+      body = active
+        .map((m) => {
+          const name = m.name;
+          const e = earned[name] || 0;
+          const p = paidFor(name);
+          const bal = e - p;
+          const hist = payouts
+            .filter((x) => x.name === name)
+            .sort((a, b) => (b.ts || 0) - (a.ts || 0));
+          const histShown = histOpen[name] ? hist : hist.slice(0, 5);
+          const histHidden = hist.length - histShown.length;
+          const earns = earnings
+            .filter((x) => x.name === name)
+            .sort((a, b) => (b.ts || 0) - (a.ts || 0));
+          const earnsShown = earnOpen[name] ? earns : earns.slice(0, 5);
+          const earnsHidden = earns.length - earnsShown.length;
+          const isPaying = payingFor === name;
+          return `
+            <div class="payout-card" style="border-left-color:${colorFor(name)}">
+              <div class="payout-top">
+                <span class="payout-name" style="color:${colorFor(name)}">${name}</span>
+                <span class="payout-balance ${bal < 0 ? "negative" : ""}">${bal} kr <span class="payout-balance-label">til gode</span></span>
+              </div>
+              <div class="payout-sub">Optjent i alt ${e} kr · Udbetalt ${p} kr</div>
+              ${
+                bal < 0
+                  ? `<div class="payout-negative-note">Udbetalt mere end optjent — det sker fx når en opgave krydses af igen efter udbetaling. Nye optjeninger udligner først minusset.</div>`
+                  : ""
+              }
+              ${
+                isPaying
+                  ? `<div class="payout-pay-row">
+                       <input type="number" min="1" max="100000" step="1" inputmode="numeric" class="input payout-amount" value="${bal}" />
+                       <span class="money-suffix">kr</span>
+                       <button class="btn-primary payout-confirm" data-payconfirm="${name}" ${busy[name] ? "disabled" : ""}>${busy[name] ? "…" : "Bekræft"}</button>
+                       <button class="btn-ghost payout-cancel" data-paycancel="${name}">Annullér</button>
+                      </div>`
+                  : `<button class="payout-btn" data-pay="${name}" ${bal <= 0 || busy[name] ? "disabled" : ""}>Betal ud</button>`
+              }
+              ${
+                earns.length
+                  ? `<div class="payout-hist"><div class="payout-hist-label">Optjent</div>${earnsShown
+                      .map(
+                        (x) =>
+                          `<div class="payout-hist-row"><span class="payout-earn-label">${x.emoji ? renderIcon(x.emoji, { size: 14 }) + " " : ""}${escapeHtml(x.label || "")}</span><span class="payout-hist-date">${fmtDate(x.date)}</span><span class="payout-earn-amt">+${x.money} kr</span></div>`
+                      )
+                      .join("")}${
+                      earnsHidden > 0
+                        ? `<button class="payout-hist-more" data-earnmore="${name}">Vis alle (${earns.length})</button>`
+                        : ""
+                    }</div>`
+                  : ""
+              }
+              ${
+                hist.length
+                  ? `<div class="payout-hist"><div class="payout-hist-label">Udbetalt</div>${histShown
+                      .map(
+                        (x) =>
+                          `<div class="payout-hist-row"><span class="payout-hist-date">${fmtDate(x.date)}</span><span class="payout-hist-amt">${x.amount} kr</span><button class="payout-hist-del" data-undo="${x.id}" title="Fjern udbetaling" aria-label="Fjern udbetaling">✕</button></div>`
+                      )
+                      .join("")}${
+                      histHidden > 0
+                        ? `<button class="payout-hist-more" data-histmore="${name}">Vis alle (${hist.length})</button>`
+                        : ""
+                    }</div>`
+                  : ""
+              }
+            </div>`;
+        })
+        .join("");
+    }
+
+    host.innerHTML = `
+      <div class="modal-wrap">
+        <div class="modal-card">
+          <div class="modal-head">
+            <h2 class="modal-title">${renderIcon("coins", { size: 22 })} Lommepenge</h2>
+            <button class="modal-close" data-close="1" aria-label="Luk">✕</button>
+          </div>
+          <p class="modal-sub">Til gode = optjent minus udbetalt. Udbetalinger gemmes som historik.</p>
+          <div class="payout-list">${body}</div>
+        </div>
+      </div>`;
+
+    host.querySelector("[data-close]").onclick = close;
+    host.querySelector(".modal-wrap").onclick = (ev) => {
+      if (ev.target === ev.currentTarget) close();
+    };
+    host.querySelectorAll("[data-pay]").forEach((el) => {
+      el.onclick = () => {
+        payingFor = el.dataset.pay;
+        draw();
+      };
+    });
+    host.querySelectorAll("[data-paycancel]").forEach((el) => {
+      el.onclick = () => {
+        payingFor = null;
+        draw();
+      };
+    });
+    host.querySelectorAll("[data-payconfirm]").forEach((el) => {
+      el.onclick = () => {
+        const name = el.dataset.payconfirm;
+        const amt = Math.round(Number(host.querySelector(".payout-amount").value));
+        if (!(amt > 0)) return alert("Skriv et beløb større end 0.");
+        pay(name, amt);
+      };
+    });
+    host.querySelectorAll("[data-undo]").forEach((el) => {
+      el.onclick = () => undo(el.dataset.undo);
+    });
+    host.querySelectorAll("[data-histmore]").forEach((el) => {
+      el.onclick = () => {
+        histOpen[el.dataset.histmore] = true;
+        draw();
+      };
+    });
+    host.querySelectorAll("[data-earnmore]").forEach((el) => {
+      el.onclick = () => {
+        earnOpen[el.dataset.earnmore] = true;
+        draw();
+      };
+    });
+  }
+
+  load();
+}

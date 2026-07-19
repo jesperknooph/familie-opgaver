@@ -4,6 +4,7 @@ import {
   getDoc,
   setDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { renderIcon } from "./icons.js";
 
 // The fixed set of family users. Shared with app.js so there's one source of truth.
 // Default accents follow the Nordlys palette: vivid enough to glow on the
@@ -222,7 +223,7 @@ function renderLogin(resolve) {
       .map((k) => {
         if (k === "") return `<span class="key key-empty"></span>`;
         if (k === "back")
-          return `<button class="key key-back" data-back="1">⌫</button>`;
+          return `<button class="key key-back" data-back="1" aria-label="Slet">${renderIcon("chevL", { size: 22 })}</button>`;
         return `<button class="key" data-digit="${k}">${k}</button>`;
       })
       .join("");

@@ -1,36 +1,34 @@
-// Repository of ready-made tasks. Each carries an emoji so the overview stays
-// visual — children recognise a task by its picture, not by reading the words.
-// `points` is the default star value credited when the task is completed
-// (adjustable per task in the add card). Add, remove or re-word freely.
+// Repository of ready-made tasks. Each carries an icon key so the overview stays
+// visual — children recognise a task by its icon badge, not just words.
 export const TASK_TEMPLATES = [
   // Køkken
-  { emoji: "🍽️", label: "Tøm opvaskemaskine", points: 2 },
-  { emoji: "🧽", label: "Fyld opvaskemaskine", points: 2 },
-  { emoji: "🍴", label: "Dæk bord", points: 1 },
-  { emoji: "🧼", label: "Tør bord af", points: 1 },
-  { emoji: "🍳", label: "Lave aftensmad", points: 3 },
+  { emoji: "dish", label: "Tøm opvaskemaskine" },
+  { emoji: "sponge", label: "Fyld opvaskemaskine" },
+  { emoji: "cutlery", label: "Dæk bord" },
+  { emoji: "soap", label: "Tør bord af" },
+  { emoji: "cook", label: "Lave aftensmad" },
 
   // Rengøring
-  { emoji: "🧹", label: "Støvsug", points: 2 },
-  { emoji: "🗑️", label: "Tag skraldet ud", points: 1 },
-  { emoji: "♻️", label: "Pante flasker", points: 2 },
-  { emoji: "🧺", label: "Læg tøj på plads", points: 2 },
-  { emoji: "🧸", label: "Ryd værelse op", points: 2 },
-  { emoji: "🛏️", label: "Red seng", points: 1 },
-  { emoji: "🚗", label: "Rengør bil", points: 3 },
+  { emoji: "broom", label: "Støvsug" },
+  { emoji: "trash", label: "Tag skraldet ud" },
+  { emoji: "recycle", label: "Pante flasker" },
+  { emoji: "laundry", label: "Læg tøj på plads" },
+  { emoji: "toys", label: "Ryd værelse op" },
+  { emoji: "bed", label: "Red seng" },
+  { emoji: "car", label: "Rengør bil" },
 
   // Dyr & have
-  { emoji: "🐕", label: "Gå med Abbey", points: 2 },
-  { emoji: "🦴", label: "Giv Abbey mad", points: 1 },
-  { emoji: "🪴", label: "Vand blomster", points: 1 },
-  { emoji: "🌿", label: "Fjerne ukrudt", points: 3 },
+  { emoji: "dog", label: "Gå med Abbey" },
+  { emoji: "petfood", label: "Giv Abbey mad" },
+  { emoji: "plant", label: "Vand blomster" },
+  { emoji: "leaf", label: "Fjerne ukrudt" },
 
   // Skole & musik
-  { emoji: "📚", label: "Lav lektier", points: 2 },
-  { emoji: "🎵", label: "Øv musik med far", points: 2 },
-  { emoji: "🎒", label: "Pak skoletaske", points: 1 },
+  { emoji: "book", label: "Lav lektier" },
+  { emoji: "music", label: "Øv musik med far" },
+  { emoji: "backpack", label: "Pak skoletaske" },
 
   // Personligt
-  { emoji: "🦷", label: "Børst tænder", points: 1 },
-  { emoji: "🚿", label: "Gå i bad", points: 1 },
+  { emoji: "tooth", label: "Børst tænder" },
+  { emoji: "shower", label: "Gå i bad" },
 ];

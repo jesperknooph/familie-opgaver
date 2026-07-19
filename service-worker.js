@@ -1,10 +1,17 @@
-const CACHE_NAME = "familie-opgaver-v33";
+const CACHE_NAME = "familie-opgaver-v37";
 const ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
   "./auth.js",
+  "./state.js",
+  "./utils.js",
+  "./db-service.js",
+  "./reminders.js",
+  "./ui-common.js",
+  "./ui-parent.js",
+  "./ui-kid.js",
   "./templates.js",
   "./firebase-config.js",
   "./manifest.json",
