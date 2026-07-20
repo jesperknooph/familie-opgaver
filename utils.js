@@ -79,12 +79,18 @@ export function isoWeek(date) {
   return 1 + Math.ceil((firstThursday - d.getTime()) / 604800000);
 }
 
-import { renderIcon } from "./icons.js";
-
-export { renderIcon };
+const UI_ICONS = {
+  trash: `<path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14zM10 11v6M14 11v6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
+  check: `<path d="M20 6L9 17l-5-5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
+  circle: `<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" fill="none"/>`,
+  chevL: `<path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
+  chevR: `<path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
+  plus: `<path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>`,
+};
 
 export function icon(name, color = "currentColor", size = 19) {
-  return renderIcon(name, { size, color });
+  const path = UI_ICONS[name] || "";
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" style="color:${color};flex-shrink:0;">${path}</svg>`;
 }
 
 export function escapeHtml(str) {

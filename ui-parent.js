@@ -27,7 +27,6 @@ import {
   removeTask,
   clearDone,
 } from "./db-service.js";
-import { renderIcon } from "./icons.js";
 
 export function renderParentMode() {
   if (!document.getElementById("openAdd")) {
@@ -71,8 +70,8 @@ export function renderParentMode() {
         Logget ind som <strong>${state.currentUser.name}</strong>
       </span>
       <span class="user-actions">
-        <button class="admin-btn" id="payoutBtn">${renderIcon("coins", { size: 16 })} Lommepenge${balanceBit}</button>
-        <button class="theme-btn" id="settingsBtn" title="Indstillinger" aria-label="Indstillinger">${renderIcon("settings", { size: 18 })}</button>
+        <button class="admin-btn" id="payoutBtn">💰 Lommepenge${balanceBit}</button>
+        <button class="theme-btn" id="settingsBtn" title="Indstillinger" aria-label="Indstillinger">⚙️</button>
       </span>
     `;
     document.getElementById("payoutBtn").onclick = openPayoutSheet;
@@ -97,8 +96,7 @@ export function renderParentMode() {
     }, {});
     avatarRow.innerHTML = MEMBERS.map(
       (m) => {
-        const faceVal = faceFor(m.name);
-        const faceHtml = faceVal.length === 1 ? faceVal : renderIcon(faceVal, { size: 18 });
+        const faceHtml = faceFor(m.name);
         return `
         <button class="avatar ${state.filter === m.name ? "active" : ""}" data-filter="${m.name}"
           style="border-color:${colorFor(m.name)}; background:${state.filter === m.name ? colorFor(m.name) : "var(--card-bg)"}; view-transition-name: avatar-${m.name};">
@@ -196,9 +194,9 @@ function renderShell() {
     <div class="user-bar" id="userBar"></div>
 
     <div class="view-toggle" id="viewToggle">
-      <button class="view-btn" data-view="idag">${renderIcon("sun", { size: 15 })} I dag</button>
-      <button class="view-btn" data-view="liste">${renderIcon("list", { size: 15 })} Liste</button>
-      <button class="view-btn" data-view="uge">${renderIcon("calendar", { size: 15 })} Uge</button>
+      <button class="view-btn" data-view="idag">☀️ I dag</button>
+      <button class="view-btn" data-view="liste">📋 Liste</button>
+      <button class="view-btn" data-view="uge">📅 Uge</button>
     </div>
 
     <section class="avatar-row" id="avatarRow"></section>
@@ -246,7 +244,7 @@ export function renderEarnings() {
   }
   row.classList.add("show");
   row.innerHTML =
-    `<span class="earnings-label">${renderIcon("coins", { size: 16 })} Denne uge</span>` +
+    `<span class="earnings-label">💰 Denne uge</span>` +
     shown.map((m) => {
       const kr = `<span class="earnings-money">${weekMoney[m.name]} kr</span>`;
       return `<span class="earnings-chip" style="color:${colorFor(m.name)}">${m.name} ${kr}</span>`;
@@ -255,11 +253,11 @@ export function renderEarnings() {
 
 export function taskRow(t) {
   const emojiTile = t.emoji
-    ? `<span class="task-emoji" style="background:${colorFor(t.assignedTo)}1A">${renderIcon(t.emoji, { size: 18, color: colorFor(t.assignedTo) })}</span>`
+    ? `<span class="task-emoji" style="background:${colorFor(t.assignedTo)}1A">${t.emoji}</span>`
     : "";
   const rotationBit =
     t.rotation && t.rotation.length > 1
-      ? `<span class="task-repeat">${renderIcon("rotate", { size: 13 })} ${escapeHtml(nextInRotation(t))} er næste</span>`
+      ? `<span class="task-repeat">🔄 ${escapeHtml(nextInRotation(t))} er næste</span>`
       : "";
   return `
     <div class="task-row ${t.done ? "done" : ""}" style="border-left-color:${colorFor(t.assignedTo)}; view-transition-name: task-${t.id};">
@@ -270,11 +268,11 @@ export function taskRow(t) {
       <div class="task-body" data-edit="${t.id}" title="Tryk for at rette">
         <span class="task-label ${t.done ? "done" : ""}">${escapeHtml(t.label)}</span>
         <span class="task-assignee" style="color:${colorFor(t.assignedTo)}">${t.assignedTo}${
-          t.repeat ? `<span class="task-repeat">${renderIcon("repeat", { size: 13 })} ${state.REPEAT_LABELS[t.repeat] || ""}</span>` : ""
+          t.repeat ? `<span class="task-repeat">🔁 ${state.REPEAT_LABELS[t.repeat] || ""}</span>` : ""
         }${rotationBit}</span>
       </div>
-      ${t.money ? `<span class="task-money">${renderIcon("coins", { size: 14 })} ${t.money} kr</span>` : ""}
-      ${t.time ? `<span class="task-time ${t.alarm ? "has-alarm" : ""}">${renderIcon(t.alarm ? "bell" : "clock", { size: 14 })} ${t.time}</span>` : ""}
+      ${t.money ? `<span class="task-money">💰 ${t.money} kr</span>` : ""}
+      ${t.time ? `<span class="task-time ${t.alarm ? "has-alarm" : ""}">${t.alarm ? "🔔" : "🕐"} ${t.time}</span>` : ""}
       <button class="delete-button" data-delete="${t.id}" aria-label="Slet opgave">${icon("trash", "#D6CFE0", 14)}</button>
     </div>`;
 }
@@ -289,7 +287,7 @@ export function listSection(visible) {
       }
       ${
         visible.length === 0
-          ? `<div class="empty"><span class="empty-emoji">${renderIcon("sparkles", { size: 36 })}</span>Ingen opgaver her.</div>`
+          ? `<div class="empty"><span class="empty-emoji">🌈</span>Ingen opgaver her.</div>`
           : visible.map(taskRow).join("")
       }
     </section>`;
@@ -332,7 +330,7 @@ export function todaySection(visible) {
         totalCount
           ? `<div class="today-progress ${pct === 100 ? "complete" : ""}">
               <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
-              <span class="progress-count">${renderIcon(pct === 100 ? "trophy" : "checkCircle", { size: 16 })} ${doneCount}/${totalCount}</span>
+              <span class="progress-count">${pct === 100 ? "🏆" : "✅"} ${doneCount}/${totalCount}</span>
             </div>`
           : ""
       }
@@ -361,7 +359,7 @@ export function todaySection(visible) {
           : ""
       }
 
-      ${nothing ? `<div class="empty"><span class="empty-emoji">${renderIcon("balloon", { size: 36 })}</span>Ingen opgaver i dag – fri leg!</div>` : ""}
+      ${nothing ? `<div class="empty"><span class="empty-emoji">🎈</span>Ingen opgaver i dag – fri leg!</div>` : ""}
     </section>`;
 }
 
@@ -509,7 +507,7 @@ export function openAddSheet() {
 
   function drawTemplates() {
     const toggle = host.querySelector("#addTplToggle");
-    toggle.innerHTML = `${renderIcon("task", { size: 16 })} Skabeloner ${showTpl ? "▴" : "▾"}`;
+    toggle.innerHTML = `📋 Skabeloner ${showTpl ? "▴" : "▾"}`;
     toggle.classList.toggle("open", showTpl);
     toggle.onclick = () => {
       showTpl = !showTpl;
@@ -525,7 +523,7 @@ export function openAddSheet() {
     gallery.innerHTML = TASK_TEMPLATES.map(
       (tpl, i) => `
         <button class="template-chip" data-template="${i}">
-          <span class="template-emoji">${renderIcon(tpl.emoji, { size: 18 })}</span>
+          <span class="template-emoji">${tpl.emoji}</span>
           <span class="template-label">${escapeHtml(tpl.label)}</span>
         </button>`
     ).join("");
@@ -547,7 +545,7 @@ export function openAddSheet() {
     const supported = "Notification" in window;
     btn.classList.toggle("active", alarm);
     btn.classList.toggle("disabled", !supported);
-    btn.innerHTML = `${renderIcon("bell", { size: 15 })} ${alarm ? "Alarm til" : "Alarm"}`;
+    btn.textContent = alarm ? "🔔 Alarm til" : "🔔 Alarm";
     btn.onclick = async () => {
       if (!supported) return alert("Denne enhed understøtter ikke notifikationer.");
       if (alarm) { alarm = false; return drawAlarm(); }
@@ -728,7 +726,7 @@ export function openEditSheet(t) {
     const supported = "Notification" in window;
     btn.classList.toggle("active", alarm);
     btn.classList.toggle("disabled", !supported);
-    btn.innerHTML = `${renderIcon("bell", { size: 15 })} ${alarm ? "Alarm til" : "Alarm"}`;
+    btn.textContent = alarm ? "🔔 Alarm til" : "🔔 Alarm";
     btn.onclick = async () => {
       if (!supported) return alert("Denne enhed understøtter ikke notifikationer.");
       if (alarm) { alarm = false; return drawAlarm(); }
@@ -856,9 +854,9 @@ export function openSettingsSheet() {
             <button class="modal-close" data-close="1" aria-label="Luk">✕</button>
           </div>
           <div class="settings-list">
-            <button class="settings-row" id="setTheme">${renderIcon(dark ? "sun" : "moon", { size: 16 })} ${dark ? "Skift til lyst tema" : "Skift til mørkt tema"}</button>
-            <button class="settings-row" id="setResetPin">${renderIcon("key", { size: 16 })} Nulstil PIN-kode</button>
-            <button class="settings-row danger" id="setLogout">${renderIcon("logout", { size: 16 })} Log ud</button>
+            <button class="settings-row" id="setTheme">${dark ? "☀️ Skift til lyst tema" : "🌙 Skift til mørkt tema"}</button>
+            <button class="settings-row" id="setResetPin">🔑 Nulstil PIN-kode</button>
+            <button class="settings-row danger" id="setLogout">🚪 Log ud</button>
           </div>
         </div>
       </div>`;
@@ -1052,7 +1050,7 @@ export async function openPayoutSheet() {
     } else if (error) {
       body = `<p class="modal-sub">Kunne ikke hente lommepenge. Er de nye regler udgivet i Firebase?</p>`;
     } else if (active.length === 0) {
-      body = `<div class="payout-empty"><span class="payout-empty-emoji">${renderIcon("coins", { size: 36 })}</span>Ingen optjente lommepenge endnu.<br>Sæt et kr-beløb på en opgave, så begynder det at tælle.</div>`;
+      body = `<div class="payout-empty"><span class="payout-empty-emoji">💰</span>Ingen optjente lommepenge endnu.<br>Sæt et kr-beløb på en opgave, så begynder det at tælle.</div>`;
     } else {
       body = active
         .map((m) => {
@@ -1098,7 +1096,7 @@ export async function openPayoutSheet() {
                   ? `<div class="payout-hist"><div class="payout-hist-label">Optjent</div>${earnsShown
                       .map(
                         (x) =>
-                          `<div class="payout-hist-row"><span class="payout-earn-label">${x.emoji ? renderIcon(x.emoji, { size: 14 }) + " " : ""}${escapeHtml(x.label || "")}</span><span class="payout-hist-date">${fmtDate(x.date)}</span><span class="payout-earn-amt">+${x.money} kr</span></div>`
+                          `<div class="payout-hist-row"><span class="payout-earn-label">${x.emoji ? x.emoji + " " : ""}${escapeHtml(x.label || "")}</span><span class="payout-hist-date">${fmtDate(x.date)}</span><span class="payout-earn-amt">+${x.money} kr</span></div>`
                       )
                       .join("")}${
                       earnsHidden > 0
@@ -1130,7 +1128,7 @@ export async function openPayoutSheet() {
       <div class="modal-wrap">
         <div class="modal-card">
           <div class="modal-head">
-            <h2 class="modal-title">${renderIcon("coins", { size: 22 })} Lommepenge</h2>
+            <h2 class="modal-title">💰 Lommepenge</h2>
             <button class="modal-close" data-close="1" aria-label="Luk">✕</button>
           </div>
           <p class="modal-sub">Til gode = optjent minus udbetalt. Udbetalinger gemmes som historik.</p>

@@ -16,11 +16,10 @@ import {
 import { confettiBurst, toggleTheme, updateWithTransition } from "./ui-common.js";
 import { tasksCol, toggleDone, saveLook } from "./db-service.js";
 import { signOut } from "./auth.js";
-import { renderIcon } from "./icons.js";
 
 const KID_CHECK_SVG = `<svg width="22" height="22" viewBox="0 0 24 24"><path d="M5 13l5 5L20 7" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const LOOK_COLORS = ["#7C5CFF", "#FF5E7A", "#38BDF8", "#10B981", "#F97316", "#EF4444", "#14B8A6", "#D946EF"];
-const LOOK_FACES = ["cool", "unicorn", "cat", "dog", "fox", "panda", "ball", "gamepad", "guitar", "rocket"];
+const LOOK_FACES = ["😎", "🦄", "🐱", "🐶", "🦊", "🐼", "⚽", "🎮", "🎸", "🚀"];
 
 export function kidTodayTasks() {
   const todayStr = ymd(new Date());
@@ -47,14 +46,14 @@ export function kidTaskCard(t, i) {
   return `
     <div class="kid-task ${t.done ? "done" : ""}"
       style="${state.kidAnimate ? `animation-delay:${0.2 + i * 0.07}s;` : ""} view-transition-name: task-${t.id};">
-      <span class="kid-task-emoji">${renderIcon(t.emoji || "task", { size: 24, badge: true, badgeBg: userColor })}</span>
+      <span class="kid-task-emoji">${t.emoji || "📋"}</span>
       <span class="kid-task-body">
         <div class="kid-task-label">${escapeHtml(t.label)}</div>
         <div class="kid-task-meta">
-          ${t.time ? `<span class="task-time ${t.alarm ? "has-alarm" : ""}">${renderIcon(t.alarm ? "bell" : "clock", { size: 14 })} ${t.time}</span>` : ""}
-          ${t.money ? `<span class="task-money">${renderIcon("coins", { size: 14 })} ${t.money} kr</span>` : ""}
-          ${t.repeat ? `<span class="task-time">${renderIcon("repeat", { size: 14 })} ${state.REPEAT_LABELS[t.repeat] || ""}</span>` : ""}
-          ${late ? `<span class="task-time">${renderIcon("clock", { size: 14 })} Fra tidligere</span>` : ""}
+          ${t.time ? `<span class="task-time ${t.alarm ? "has-alarm" : ""}">${t.alarm ? "🔔" : "🕐"} ${t.time}</span>` : ""}
+          ${t.money ? `<span class="task-money">💰 ${t.money} kr</span>` : ""}
+          ${t.repeat ? `<span class="task-time">🔁 ${state.REPEAT_LABELS[t.repeat] || ""}</span>` : ""}
+          ${late ? `<span class="task-time">⏰ Fra tidligere</span>` : ""}
         </div>
       </span>
       <button class="kid-check ${t.done ? "done" : ""}" data-kidtoggle="${t.id}" aria-label="${t.done ? "Fjern flueben" : "Kryds af"}">${t.done ? KID_CHECK_SVG : ""}</button>
@@ -90,10 +89,10 @@ export function kidWeekRows() {
       stateHtml = `<span class="kid-day-state pending">${dayTasks.length}</span>`;
     }
 
-    const icons = dayTasks.map((t) => renderIcon(t.emoji || "task", { size: 16 })).join("");
+    const icons = dayTasks.map((t) => t.emoji || "📋").join("");
     const middle = icons
       ? `<span class="kid-day-emojis">${icons}</span>`
-      : `<span class="kid-day-free">${doneCount > 0 ? "" : `Fri ${renderIcon("balloon", { size: 16 })}`}</span>`;
+      : `<span class="kid-day-free">${doneCount > 0 ? "" : "Fri 🎈"}</span>`;
 
     const delays = state.kidAnimate
       ? `animation-delay:${0.05 * i}s;`
@@ -137,48 +136,48 @@ export function renderKidMode() {
   const customized = !!(state.looks[me]?.face || state.looks[me]?.color);
 
   const faceVal = faceFor(me);
-  const faceHtml = faceVal.length === 1 ? faceVal : renderIcon(faceVal, { size: 24 });
+  const faceHtml = faceVal;
 
   const appContainer = document.getElementById("app");
   appContainer.innerHTML = `
     <div class="${state.kidAnimate ? "kid-enter" : ""}">
       <div class="kid-hello">
         <button class="kid-face ${customized ? "customized" : ""}" id="kidFace" title="Vælg dit look">
-          <span>${faceHtml}</span><span class="kid-face-edit">${renderIcon("pencil", { size: 12 })}</span>
+          <span>${faceHtml}</span><span class="kid-face-edit">✏️</span>
         </button>
         <span class="kid-hello-text">
-          <div class="kid-hi">Hej ${me}! <span class="kid-wave">${renderIcon("wave", { size: 22, color: "#FFD166" })}</span></div>
+          <div class="kid-hi">Hej ${me}! <span class="kid-wave">👋</span></div>
           <div class="kid-date">${dateLabel}</div>
         </span>
-        <button class="theme-btn" id="themeBtn" title="Skift mellem lys og mørk" aria-label="Skift mellem lys og mørk">${renderIcon(isDark ? "sun" : "moon", { size: 18 })}</button>
+        <button class="theme-btn" id="themeBtn" title="Skift mellem lys og mørk" aria-label="Skift mellem lys og mørk">${isDark ? "☀️" : "🌙"}</button>
         <button class="logout-btn" id="logoutBtn">Log ud</button>
       </div>
 
       <div class="kid-progress" style="${state.kidAnimate ? "animation-delay:0.08s;" : ""} view-transition-name: kid-progress;">
         <div class="kid-progress-top">
           <span class="kid-progress-label">Din dag</span>
-          <span class="kid-progress-count">${total === 0 ? `Fri i dag ${renderIcon("balloon", { size: 16 })}` : `${renderIcon("checkCircle", { size: 16 })} ${doneToday} af ${total}`}</span>
+          <span class="kid-progress-count">${total === 0 ? "Fri i dag 🎈" : `✅ ${doneToday} af ${total}`}</span>
         </div>
         ${total > 0 ? `<div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>` : ""}
-        ${moneyInUse ? `<div class="kid-week-money">${renderIcon("coins", { size: 16 })} Du har tjent ${weekMoney} kr denne uge</div>` : ""}
-        ${moneyInUse && kidBalance !== null ? `<div class="kid-piggy">${renderIcon("piggy", { size: 16 })} Du har ${kidBalance} kr i sparegrisen</div>` : ""}
+        ${moneyInUse ? `<div class="kid-week-money">💰 Du har tjent ${weekMoney} kr denne uge</div>` : ""}
+        ${moneyInUse && kidBalance !== null ? `<div class="kid-piggy">🐷 Du har ${kidBalance} kr i sparegrisen</div>` : ""}
       </div>
 
       <div class="kid-tabs" style="${state.kidAnimate ? "animation-delay:0.15s;" : ""}">
-        <button class="kid-tab ${state.kidView === "idag" ? "active" : ""}" data-kidview="idag">${renderIcon("sun", { size: 16 })} I dag</button>
-        <button class="kid-tab ${state.kidView === "uge" ? "active" : ""}" data-kidview="uge">${renderIcon("calendar", { size: 16 })} Min uge</button>
+        <button class="kid-tab ${state.kidView === "idag" ? "active" : ""}" data-kidview="idag">☀️ I dag</button>
+        <button class="kid-tab ${state.kidView === "uge" ? "active" : ""}" data-kidview="uge">📅 Min uge</button>
       </div>
 
       ${
         state.kidView === "idag"
           ? list.length === 0
-            ? `<div class="empty" style="${state.kidAnimate ? "animation-delay:0.22s;" : ""}"><span class="empty-emoji">${renderIcon("balloon", { size: 36 })}</span>Ingen opgaver i dag – fri leg!</div>`
+            ? `<div class="empty" style="${state.kidAnimate ? "animation-delay:0.22s;" : ""}"><span class="empty-emoji">🎈</span>Ingen opgaver i dag – fri leg!</div>`
             : list.map(kidTaskCard).join("")
           : kidWeekRows()
       }
     </div>
 
-    <button class="kid-fab" id="kidAddBtn" title="Tilføj opgave" aria-label="Tilføj opgave">${renderIcon("plus", { size: 24, color: "#fff" })}</button>
+    <button class="kid-fab" id="kidAddBtn" title="Tilføj opgave" aria-label="Tilføj opgave">＋</button>
   `;
   state.kidAnimate = false;
 
@@ -231,15 +230,15 @@ export function kidCelebrate() {
   el.className = "kid-celebrate";
   el.innerHTML = `
     <div class="kid-celebrate-card">
-      <span class="kid-celebrate-trophy">${renderIcon("trophy", { size: 64, color: "#FFC53D" })}</span>
+      <span class="kid-celebrate-trophy">🏆</span>
       <div class="kid-celebrate-title">Alt klaret!</div>
       <div class="kid-celebrate-sub">Sikke en sej dag, ${state.currentUser.name}!</div>
       <div class="kid-celebrate-stars">
-        <span style="animation-delay:0.5s">${renderIcon("star", { size: 24, color: "#FFC53D" })}</span>
-        <span style="animation-delay:0.65s">${renderIcon("star", { size: 24, color: "#FFC53D" })}</span>
-        <span style="animation-delay:0.8s">${renderIcon("star", { size: 24, color: "#FFC53D" })}</span>
-        <span style="animation-delay:0.95s">${renderIcon("star", { size: 24, color: "#FFC53D" })}</span>
-        <span style="animation-delay:1.1s">${renderIcon("star", { size: 24, color: "#FFC53D" })}</span>
+        <span style="animation-delay:0.5s">⭐</span>
+        <span style="animation-delay:0.65s">⭐</span>
+        <span style="animation-delay:0.8s">⭐</span>
+        <span style="animation-delay:0.95s">⭐</span>
+        <span style="animation-delay:1.1s">⭐</span>
       </div>
     </div>`;
   el.onclick = () => el.remove();
@@ -252,7 +251,7 @@ export function kidCelebrate() {
   setTimeout(() => el.remove(), 7000);
 }
 
-const KID_EMOJI_QUICKPICKS = ["task", "toys", "book", "tooth", "shower", "broom", "dog", "music", "ball", "gamepad", "art", "dish"];
+const KID_EMOJI_QUICKPICKS = ["🧹", "🧸", "📚", "🦷", "🚿", "🍽️", "🐕", "🎵", "⚽", "🎮", "🎨", "🧽"];
 
 export function openKidAddSheet() {
   let host = document.getElementById("kidAddSheet");
@@ -263,7 +262,7 @@ export function openKidAddSheet() {
     document.body.appendChild(host);
   }
 
-  let emoji = "task";
+  let emoji = "🧹";
   let when = "today";
   let pickedDate = "";
   let busy = false;
@@ -282,13 +281,13 @@ export function openKidAddSheet() {
     <div class="modal-wrap">
       <div class="modal-card kid-add-card">
         <div class="modal-head">
-          <h2 class="modal-title">Ny opgave ${renderIcon("sparkles", { size: 18 })}</h2>
+          <h2 class="modal-title">Ny opgave ✨</h2>
           <button class="modal-close" data-close="1" aria-label="Luk">✕</button>
         </div>
 
         <div class="kid-add-emojis">
           ${KID_EMOJI_QUICKPICKS.map(
-            (e) => `<button class="kid-emoji-pick ${emoji === e ? "active" : ""}" data-emoji="${e}">${renderIcon(e, { size: 20 })}</button>`
+            (e) => `<button class="kid-emoji-pick ${emoji === e ? "active" : ""}" data-emoji="${e}">${e}</button>`
           ).join("")}
         </div>
 
@@ -296,15 +295,15 @@ export function openKidAddSheet() {
 
         <div class="kid-add-when-label">Hvornår?</div>
         <div class="kid-when-chips">
-          <button class="kid-when-chip active" data-when="today">${renderIcon("sun", { size: 15 })} I dag</button>
-          <button class="kid-when-chip" data-when="tomorrow">${renderIcon("moon", { size: 15 })} I morgen</button>
-          <button class="kid-when-chip" data-when="date" id="kidWhenDate">${renderIcon("calendar", { size: 15 })} Vælg dag</button>
+          <button class="kid-when-chip active" data-when="today">☀️ I dag</button>
+          <button class="kid-when-chip" data-when="tomorrow">🌙 I morgen</button>
+          <button class="kid-when-chip" data-when="date" id="kidWhenDate">📅 Vælg dag</button>
         </div>
         <input type="date" id="kidAddDate" class="kid-hidden-date" />
 
         <div class="sheet-actions">
           <button class="btn-ghost" data-close="1">Annullér</button>
-          <button class="btn-primary" id="kidAddSave">Tilføj ${renderIcon("sparkles", { size: 16 })}</button>
+          <button class="btn-primary" id="kidAddSave">Tilføj ✨</button>
         </div>
       </div>
     </div>`;
@@ -347,7 +346,7 @@ export function openKidAddSheet() {
     if (!dateInput.value) return;
     pickedDate = dateInput.value;
     const d = parseYmd(pickedDate);
-    dateChip.innerHTML = `${renderIcon("calendar", { size: 15 })} ${d.getDate()}. ${MONTHS[d.getMonth()]}`;
+    dateChip.innerHTML = `📅 ${d.getDate()}. ${MONTHS[d.getMonth()]}`;
     selectWhen("date", dateChip);
   };
 
@@ -375,7 +374,7 @@ export function openKidAddSheet() {
     } catch (e) {
       console.error("Kid adding task failed:", e);
       busy = false;
-      saveBtn.innerHTML = `Tilføj ${renderIcon("sparkles", { size: 16 })}`;
+      saveBtn.innerHTML = "Tilføj ✨";
       alert("Kunne ikke gemme opgaven. Er du online?");
     }
   }
@@ -416,7 +415,7 @@ export function openLookSheet() {
             ${faces
               .map(
                 (f) => `<button class="kid-emoji-opt ${f === face ? "active" : ""}" data-face="${f}">
-                  ${f.length === 1 ? f : renderIcon(f, { size: 24 })}
+                  ${f}
                 </button>`
               )
               .join("")}

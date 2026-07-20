@@ -1,34 +1,35 @@
-// Repository of ready-made tasks. Each carries an icon key so the overview stays
-// visual — children recognise a task by its icon badge, not just words.
+// Repository of ready-made tasks. Each carries an emoji so the overview stays
+// visual — children recognise a task by its picture, not by reading the words.
+// Add, remove or re-word freely.
 export const TASK_TEMPLATES = [
   // Køkken
-  { emoji: "dish", label: "Tøm opvaskemaskine" },
-  { emoji: "sponge", label: "Fyld opvaskemaskine" },
-  { emoji: "cutlery", label: "Dæk bord" },
-  { emoji: "soap", label: "Tør bord af" },
-  { emoji: "cook", label: "Lave aftensmad" },
+  { emoji: "🍽️", label: "Tøm opvaskemaskine" },
+  { emoji: "🧽", label: "Fyld opvaskemaskine" },
+  { emoji: "🍴", label: "Dæk bord" },
+  { emoji: "🧼", label: "Tør bord af" },
+  { emoji: "🍳", label: "Lave aftensmad" },
 
   // Rengøring
-  { emoji: "broom", label: "Støvsug" },
-  { emoji: "trash", label: "Tag skraldet ud" },
-  { emoji: "recycle", label: "Pante flasker" },
-  { emoji: "laundry", label: "Læg tøj på plads" },
-  { emoji: "toys", label: "Ryd værelse op" },
-  { emoji: "bed", label: "Red seng" },
-  { emoji: "car", label: "Rengør bil" },
+  { emoji: "🧹", label: "Støvsug" },
+  { emoji: "🗑️", label: "Tag skraldet ud" },
+  { emoji: "♻️", label: "Pante flasker" },
+  { emoji: "🧺", label: "Læg tøj på plads" },
+  { emoji: "🧸", label: "Ryd værelse op" },
+  { emoji: "🛏️", label: "Red seng" },
+  { emoji: "🚗", label: "Rengør bil" },
 
   // Dyr & have
-  { emoji: "dog", label: "Gå med Abbey" },
-  { emoji: "petfood", label: "Giv Abbey mad" },
-  { emoji: "plant", label: "Vand blomster" },
-  { emoji: "leaf", label: "Fjerne ukrudt" },
+  { emoji: "🐕", label: "Gå med Abbey" },
+  { emoji: "🦴", label: "Giv Abbey mad" },
+  { emoji: "🪴", label: "Vand blomster" },
+  { emoji: "🌿", label: "Fjerne ukrudt" },
 
   // Skole & musik
-  { emoji: "book", label: "Lav lektier" },
-  { emoji: "music", label: "Øv musik med far" },
-  { emoji: "backpack", label: "Pak skoletaske" },
+  { emoji: "📚", label: "Lav lektier" },
+  { emoji: "🎵", label: "Øv musik med far" },
+  { emoji: "🎒", label: "Pak skoletaske" },
 
   // Personligt
-  { emoji: "tooth", label: "Børst tænder" },
-  { emoji: "shower", label: "Gå i bad" },
+  { emoji: "🦷", label: "Børst tænder" },
+  { emoji: "🚿", label: "Gå i bad" },
 ];
