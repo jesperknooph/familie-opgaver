@@ -46,7 +46,7 @@ export function kidTaskCard(t, i) {
   return `
     <div class="kid-task ${t.done ? "done" : ""}"
       style="${state.kidAnimate ? `animation-delay:${0.2 + i * 0.07}s;` : ""} view-transition-name: task-${t.id};">
-      <span class="kid-task-emoji">${t.emoji || "📋"}</span>
+      <span class="kid-task-emoji">${t.emoji ? escapeHtml(t.emoji) : "📋"}</span>
       <span class="kid-task-body">
         <div class="kid-task-label">${escapeHtml(t.label)}</div>
         <div class="kid-task-meta">

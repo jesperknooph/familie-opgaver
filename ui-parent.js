@@ -253,7 +253,7 @@ export function renderEarnings() {
 
 export function taskRow(t) {
   const emojiTile = t.emoji
-    ? `<span class="task-emoji" style="background:${colorFor(t.assignedTo)}1A">${t.emoji}</span>`
+    ? `<span class="task-emoji" style="background:${colorFor(t.assignedTo)}1A">${escapeHtml(t.emoji)}</span>`
     : "";
   const rotationBit =
     t.rotation && t.rotation.length > 1
@@ -1096,7 +1096,7 @@ export async function openPayoutSheet() {
                   ? `<div class="payout-hist"><div class="payout-hist-label">Optjent</div>${earnsShown
                       .map(
                         (x) =>
-                          `<div class="payout-hist-row"><span class="payout-earn-label">${x.emoji ? x.emoji + " " : ""}${escapeHtml(x.label || "")}</span><span class="payout-hist-date">${fmtDate(x.date)}</span><span class="payout-earn-amt">+${x.money} kr</span></div>`
+                          `<div class="payout-hist-row"><span class="payout-earn-label">${x.emoji ? escapeHtml(x.emoji) + " " : ""}${escapeHtml(x.label || "")}</span><span class="payout-hist-date">${fmtDate(x.date)}</span><span class="payout-earn-amt">+${x.money} kr</span></div>`
                       )
                       .join("")}${
                       earnsHidden > 0

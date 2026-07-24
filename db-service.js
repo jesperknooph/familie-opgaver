@@ -13,7 +13,7 @@ import {
   where,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { state } from "./state.js";
-import { ymd, startOfWeek, nextDueDate, nextInRotation, uid, escapeHtml } from "./utils.js";
+import { ymd, startOfWeek, nextDueDate, nextInRotation, escapeHtml } from "./utils.js";
 import { MEMBERS, isAdmin } from "./auth.js";
 
 export const tasksCol = collection(db, "tasks");
