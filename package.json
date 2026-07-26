@@ -1,0 +1,10 @@
+{
+  "name": "familie-opgaver",
+  "version": "1.0.0",
+  "description": "Shared family task tracker PWA (static, no build step).",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

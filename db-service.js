@@ -71,31 +71,69 @@ export function subscribeCompletions() {
   );
 }
 
+// Past earnings (all completions before this week) never change once the week
+// has turned — you can only check/uncheck tasks for *today*, which is always in
+// the current week. So we cache the per-child totals on-device, keyed by the
+// week they belong to. The full-history query then runs at most once a week per
+// device instead of on every app open, while the balances stay exactly as
+// before (derived from real history, so they can't drift).
+const ALLOW_CACHE_KEY = "familie-opgaver:allowEarnedPast";
+
+function readEarnedPastCache(weekStart, kidNames) {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(ALLOW_CACHE_KEY));
+    if (!parsed || parsed.weekStart !== weekStart || !parsed.past) return null;
+    // If a current member is missing, the cache is incomplete — re-query.
+    if (!kidNames.every((n) => n in parsed.past)) return null;
+    // Project onto the current roster so a removed member can't linger.
+    const past = {};
+    kidNames.forEach((n) => (past[n] = parsed.past[n] || 0));
+    return past;
+  } catch (e) {
+    return null; // missing or corrupt cache — just re-query
+  }
+}
+
+function writeEarnedPastCache(weekStart, past) {
+  try {
+    localStorage.setItem(ALLOW_CACHE_KEY, JSON.stringify({ weekStart, past }));
+  } catch (e) {
+    // storage disabled/full — fine, we'll simply re-query next time
+  }
+}
+
 // Standing allowance balance ("til gode").
 export async function loadAllowance() {
   if (state.unsubAllowPayouts) state.unsubAllowPayouts();
-  
+
   const kidNames = MEMBERS.filter((m) => !m.admin).map((m) => m.name);
   if (kidNames.length === 0) return;
 
-  // 1. Fetch past earnings
+  // 1. Past earnings — served from the weekly cache when possible, otherwise
+  // queried once and cached for the rest of the week.
   const weekStart = ymd(startOfWeek(new Date()));
-  try {
-    const qPast = query(
-      completionsCol,
-      where("money", ">", 0),
-      where("date", "<", weekStart)
-    );
-    const snap = await getDocs(qPast);
-    const past = {};
-    kidNames.forEach((n) => (past[n] = 0));
-    snap.forEach((d) => {
-      const c = d.data();
-      if (c.name in past) past[c.name] += c.money || 0;
-    });
-    state.allowEarnedPast = past;
-  } catch (e) {
-    console.warn("Could not fetch past allowance earnings:", e);
+  const cached = readEarnedPastCache(weekStart, kidNames);
+  if (cached) {
+    state.allowEarnedPast = cached;
+  } else {
+    try {
+      const qPast = query(
+        completionsCol,
+        where("money", ">", 0),
+        where("date", "<", weekStart)
+      );
+      const snap = await getDocs(qPast);
+      const past = {};
+      kidNames.forEach((n) => (past[n] = 0));
+      snap.forEach((d) => {
+        const c = d.data();
+        if (c.name in past) past[c.name] += c.money || 0;
+      });
+      state.allowEarnedPast = past;
+      writeEarnedPastCache(weekStart, past);
+    } catch (e) {
+      console.warn("Could not fetch past allowance earnings:", e);
+    }
   }
 
   // 2. Keep a live subscription on payouts

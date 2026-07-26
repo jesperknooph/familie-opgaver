@@ -1,4 +1,4 @@
-const CACHE_NAME = "familie-opgaver-v42";
+const CACHE_NAME = "familie-opgaver-v43";
 const ASSETS = [
   "./",
   "./index.html",
@@ -7,6 +7,7 @@ const ASSETS = [
   "./auth.js",
   "./state.js",
   "./utils.js",
+  "./date-utils.js",
   "./db-service.js",
   "./reminders.js",
   "./ui-common.js",
