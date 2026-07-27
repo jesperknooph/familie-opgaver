@@ -974,9 +974,9 @@ html.dark .input.invalid:focus {
   background: #fff;
   border-color: rgba(19, 26, 49, 0.15);
 }
-.key:active { 
-  background: rgba(19, 26, 49, 0.05); 
-  transform: scale(0.94); 
+.key:active, .key.key-pressed {
+  background: rgba(19, 26, 49, 0.05);
+  transform: scale(0.94);
 }
 .key-empty { 
   border: none; 
@@ -989,7 +989,18 @@ html.dark .input.invalid:focus {
   font-size: 18px; 
   color: var(--text-secondary); 
 }
-.login-error { 
+/* Only worth saying where there's a keyboard — hidden on touch. */
+.login-hint {
+  display: none;
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+  text-align: center;
+  margin: 14px 0 0;
+}
+@media (hover: hover) and (pointer: fine) {
+  .login-hint { display: block; }
+}
+.login-error {
   background: #FEE2E2; 
   color: #991B1B; 
   padding: 10px 14px; 
@@ -1909,7 +1920,7 @@ html.dark .login-avatar {
 html.dark .key {
   background: rgba(255, 255, 255, 0.06);
 }
-html.dark .key:active {
+html.dark .key:active, html.dark .key.key-pressed {
   background: rgba(255, 255, 255, 0.12);
 }
 

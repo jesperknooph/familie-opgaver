@@ -186,8 +186,17 @@ function renderLogin(resolve) {
   function finish() {
     currentUser = selected;
     if (remember) localStorage.setItem(STORAGE_KEY, selected.name);
+    document.removeEventListener("keydown", onKeydown);
     host.remove();
     resolve(currentUser);
+  }
+
+  function backToWho() {
+    step = "who";
+    entry = "";
+    firstPin = "";
+    error = "";
+    draw();
   }
 
   function press(d) {
@@ -206,6 +215,34 @@ function renderLogin(resolve) {
     if (busy) return;
     entry = entry.slice(0, -1);
     draw();
+  }
+
+  // Desktop keyboard: type the digits, Backspace to delete, Esc to pick someone
+  // else. The on-screen key flashes so it reads the same as a tap.
+  function onKeydown(e) {
+    if (step !== "pin" || busy || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key >= "0" && e.key <= "9" && e.key.length === 1) {
+      if (entry.length >= 4) return;
+      e.preventDefault();
+      press(e.key);
+      flashKey(`[data-digit="${e.key}"]`);
+    } else if (e.key === "Backspace") {
+      e.preventDefault();
+      if (!entry.length) return;
+      backspace();
+      flashKey("[data-back]");
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      backToWho();
+    }
+  }
+
+  // press()/backspace() redraw, so look the key up afterwards — it's a new node.
+  function flashKey(selector) {
+    const el = host.querySelector(selector);
+    if (!el) return;
+    el.classList.add("key-pressed");
+    setTimeout(() => el.classList.remove("key-pressed"), 130);
   }
 
   function dotsHtml() {
@@ -270,6 +307,7 @@ function renderLogin(resolve) {
             <div class="pin-dots">${dotsHtml()}</div>
             ${error ? `<div class="login-error">${error}</div>` : ""}
             <div class="keypad">${keypadHtml()}</div>
+            <p class="login-hint">Du kan også taste PIN'en på tastaturet</p>
             <label class="login-remember">
               <input type="checkbox" id="rememberMe" ${remember ? "checked" : ""}/>
               Husk mig på denne enhed
@@ -290,17 +328,11 @@ function renderLogin(resolve) {
     const backEl = host.querySelector("[data-back]");
     if (backEl) backEl.onclick = backspace;
     const backStepEl = host.querySelector("[data-back-step]");
-    if (backStepEl)
-      backStepEl.onclick = () => {
-        step = "who";
-        entry = "";
-        firstPin = "";
-        error = "";
-        draw();
-      };
+    if (backStepEl) backStepEl.onclick = backToWho;
     const rememberEl = host.querySelector("#rememberMe");
     if (rememberEl) rememberEl.onchange = (e) => { remember = e.target.checked; };
   }
 
+  document.addEventListener("keydown", onKeydown);
   draw();
 }
