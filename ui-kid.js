@@ -19,6 +19,7 @@ import {
   updateWithTransition,
   openSheet,
   fieldError,
+  skeletonRows,
 } from "./ui-common.js";
 import { tasksCol, toggleDone, saveLook, showToast } from "./db-service.js";
 import { signOut } from "./auth.js";
@@ -117,95 +118,144 @@ export function kidWeekRows() {
   return rows;
 }
 
-export function renderKidMode() {
-  const me = state.currentUser.name;
-  document.documentElement.style.setProperty("--kid-accent", colorFor(me));
-
-  const today = new Date();
-  const todayStr = ymd(today);
-  const dateLabel = `${DAY_NAMES[(today.getDay() + 6) % 7]} ${today.getDate()}. ${MONTHS[today.getMonth()]}`;
-
-  const list = kidTodayTasks();
-  const doneToday = kidCompletionsOn(todayStr).length;
-  const open = list.filter((t) => !t.done).length;
-  const total = open + doneToday;
-  const pct = total ? Math.round((doneToday / total) * 100) : 0;
-  const myCompletions = state.completions.filter((c) => c.name === me);
-  const weekMoney = myCompletions.reduce((s, c) => s + (c.money || 0), 0);
-  const moneyInUse = state.tasks.some((t) => t.money) || state.completions.some((c) => c.money);
-  
-  const kidBalance =
-    state.allowEarnedPast !== null && state.allowPaidOut !== null
-      ? (state.allowEarnedPast[me] || 0) + weekMoney - (state.allowPaidOut[me] || 0)
-      : null;
-  const isDark = document.documentElement.classList.contains("dark");
-  const customized = !!(state.looks[me]?.face || state.looks[me]?.color);
-
-  const faceVal = faceFor(me);
-  const faceHtml = faceVal;
-
-  const appContainer = document.getElementById("app");
-  appContainer.innerHTML = `
-    <div class="${state.kidAnimate ? "kid-enter" : ""}">
-      <div class="kid-hello">
-        <button class="kid-face ${customized ? "customized" : ""}" id="kidFace" title="Vælg dit look">
-          <span>${faceHtml}</span><span class="kid-face-edit">✏️</span>
-        </button>
-        <span class="kid-hello-text">
-          <div class="kid-hi">Hej ${me}! <span class="kid-wave">👋</span></div>
-          <div class="kid-date">${dateLabel}</div>
-        </span>
-        <button class="theme-btn" id="themeBtn" title="Skift mellem lys og mørk" aria-label="Skift mellem lys og mørk">${isDark ? "☀️" : "🌙"}</button>
-        <button class="logout-btn" id="logoutBtn">Log ud</button>
-      </div>
-
-      <div class="kid-progress" style="${state.kidAnimate ? "animation-delay:0.08s;" : ""} view-transition-name: kid-progress;">
-        <div class="kid-progress-top">
-          <span class="kid-progress-label">Din dag</span>
-          <span class="kid-progress-count">${total === 0 ? "Fri i dag 🎈" : `✅ ${doneToday} af ${total}`}</span>
-        </div>
-        ${total > 0 ? `<div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>` : ""}
-        ${moneyInUse ? `<div class="kid-week-money">💰 Du har tjent ${weekMoney} kr denne uge</div>` : ""}
-        ${moneyInUse && kidBalance !== null ? `<div class="kid-piggy">🐷 Du har ${kidBalance} kr i sparegrisen</div>` : ""}
-      </div>
-
-      <div class="kid-tabs" style="${state.kidAnimate ? "animation-delay:0.15s;" : ""}">
-        <button class="kid-tab ${state.kidView === "idag" ? "active" : ""}" data-kidview="idag">☀️ I dag</button>
-        <button class="kid-tab ${state.kidView === "uge" ? "active" : ""}" data-kidview="uge">📅 Min uge</button>
-      </div>
-
-      ${
-        state.kidView === "idag"
-          ? list.length === 0
-            ? `<div class="empty" style="${state.kidAnimate ? "animation-delay:0.22s;" : ""}"><span class="empty-emoji">🎈</span>Ingen opgaver i dag – fri leg!</div>`
-            : list.map(kidTaskCard).join("")
-          : kidWeekRows()
-      }
+// The shell is built once. Every later render rewrites only the regions whose
+// contents actually changed — replacing all of #app on each Firestore snapshot
+// (which is what this used to do) restarted the entry animations and threw away
+// the scroll position whenever anyone in the family touched a task.
+function renderKidShell() {
+  document.getElementById("app").innerHTML = `
+    <div id="kidRoot">
+      <div class="kid-hello" id="kidHello"></div>
+      <div class="kid-progress" id="kidProgress" style="view-transition-name: kid-progress;"></div>
+      <div class="kid-tabs" id="kidTabs"></div>
+      <div id="kidList"></div>
     </div>
 
     <button class="kid-fab" id="kidAddBtn" title="Tilføj opgave" aria-label="Tilføj opgave">＋</button>
   `;
-  state.kidAnimate = false;
-
   document.getElementById("kidAddBtn").onclick = openKidAddSheet;
-  document.getElementById("logoutBtn").onclick = signOut;
-  document.getElementById("themeBtn").onclick = toggleTheme;
-  document.getElementById("kidFace").onclick = openLookSheet;
+}
 
-  document.querySelectorAll("[data-kidview]").forEach((el) => {
-    el.onclick = () => {
-      if (state.kidView === el.dataset.kidview) return;
-      state.kidView = el.dataset.kidview;
+export function renderKidMode() {
+  const me = state.currentUser.name;
+  document.documentElement.style.setProperty("--kid-accent", colorFor(me));
+
+  if (!document.getElementById("kidList")) renderKidShell();
+
+  // The entry animations are CSS rules under .kid-enter; carrying the class only
+  // while kidAnimate is set keeps them to first paint and tab switches.
+  document.getElementById("kidRoot").classList.toggle("kid-enter", state.kidAnimate);
+
+  updateKidHello(me);
+  updateKidProgress(me);
+  updateKidTabs();
+  updateKidList();
+
+  state.kidAnimate = false;
+}
+
+function updateKidHello(me) {
+  const today = new Date();
+  const dateLabel = `${DAY_NAMES[(today.getDay() + 6) % 7]} ${today.getDate()}. ${MONTHS[today.getMonth()]}`;
+  const isDark = document.documentElement.classList.contains("dark");
+  const customized = !!(state.looks[me]?.face || state.looks[me]?.color);
+
+  const el = document.getElementById("kidHello");
+  el.innerHTML = `
+    <button class="kid-face ${customized ? "customized" : ""}" id="kidFace" title="Vælg dit look">
+      <span>${faceFor(me)}</span><span class="kid-face-edit">✏️</span>
+    </button>
+    <span class="kid-hello-text">
+      <div class="kid-hi">Hej ${escapeHtml(me)}! <span class="kid-wave">👋</span></div>
+      <div class="kid-date">${dateLabel}</div>
+    </span>
+    <button class="theme-btn" id="themeBtn" title="Skift mellem lys og mørk" aria-label="Skift mellem lys og mørk">${isDark ? "☀️" : "🌙"}</button>
+    <button class="logout-btn" id="logoutBtn">Log ud</button>
+  `;
+  el.querySelector("#logoutBtn").onclick = signOut;
+  el.querySelector("#themeBtn").onclick = toggleTheme;
+  el.querySelector("#kidFace").onclick = openLookSheet;
+}
+
+function updateKidProgress(me) {
+  const todayStr = ymd(new Date());
+  const list = kidTodayTasks();
+  const doneToday = kidCompletionsOn(todayStr).length;
+  const total = list.filter((t) => !t.done).length + doneToday;
+  const pct = total ? Math.round((doneToday / total) * 100) : 0;
+  const weekMoney = state.completions
+    .filter((c) => c.name === me)
+    .reduce((s, c) => s + (c.money || 0), 0);
+  const moneyInUse = state.tasks.some((t) => t.money) || state.completions.some((c) => c.money);
+  const kidBalance =
+    state.allowEarnedPast !== null && state.allowPaidOut !== null
+      ? (state.allowEarnedPast[me] || 0) + weekMoney - (state.allowPaidOut[me] || 0)
+      : null;
+
+  // "Fri i dag 🎈" before the first snapshot would be a promise the app can't
+  // keep — an empty task list means "not loaded yet" until state.loaded says so.
+  const countText = !state.loaded && total === 0
+    ? "Henter …"
+    : total === 0
+      ? "Fri i dag 🎈"
+      : `✅ ${doneToday} af ${total}`;
+
+  const el = document.getElementById("kidProgress");
+  el.style.animationDelay = state.kidAnimate ? "0.08s" : "";
+  el.innerHTML = `
+    <div class="kid-progress-top">
+      <span class="kid-progress-label">Din dag</span>
+      <span class="kid-progress-count">${countText}</span>
+    </div>
+    ${total > 0 ? `<div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>` : ""}
+    ${moneyInUse ? `<div class="kid-week-money">💰 Du har tjent ${weekMoney} kr denne uge</div>` : ""}
+    ${moneyInUse && kidBalance !== null ? `<div class="kid-piggy">🐷 Du har ${kidBalance} kr i sparegrisen</div>` : ""}
+    ${
+      state.online
+        ? ""
+        : `<div class="kid-offline">📴 Du er offline — dine flueben gemmes, når nettet er tilbage</div>`
+    }
+  `;
+}
+
+function updateKidTabs() {
+  const el = document.getElementById("kidTabs");
+  el.style.animationDelay = state.kidAnimate ? "0.15s" : "";
+  el.innerHTML = `
+    <button class="kid-tab ${state.kidView === "idag" ? "active" : ""}" data-kidview="idag">☀️ I dag</button>
+    <button class="kid-tab ${state.kidView === "uge" ? "active" : ""}" data-kidview="uge">📅 Min uge</button>
+  `;
+  el.querySelectorAll("[data-kidview]").forEach((tab) => {
+    tab.onclick = () => {
+      if (state.kidView === tab.dataset.kidview) return;
+      state.kidView = tab.dataset.kidview;
       state.kidAnimate = true;
       updateWithTransition();
     };
   });
+}
 
-  document.querySelectorAll("[data-kidtoggle]").forEach((el) => {
-    el.onclick = () => kidToggle(el);
+function updateKidList() {
+  const list = kidTodayTasks();
+  const el = document.getElementById("kidList");
+
+  if (state.kidView === "uge") {
+    el.innerHTML = kidWeekRows();
+  } else if (list.length > 0) {
+    el.innerHTML = list.map(kidTaskCard).join("");
+  } else if (!state.loaded) {
+    el.innerHTML = skeletonRows(3, true);
+  } else {
+    el.innerHTML = `<div class="empty" style="${
+      state.kidAnimate ? "animation-delay:0.22s;" : ""
+    }"><span class="empty-emoji">🎈</span>Ingen opgaver i dag – fri leg!</div>`;
+  }
+
+  el.querySelectorAll("[data-kidtoggle]").forEach((btn) => {
+    btn.onclick = () => kidToggle(btn);
   });
 
-  const todayRow = document.querySelector("[data-kidgotoday]");
+  const todayRow = el.querySelector("[data-kidgotoday]");
   if (todayRow) {
     todayRow.onclick = () => {
       state.kidView = "idag";

@@ -10,6 +10,14 @@ export const state = {
   allowEarnedPast: null,
   allowPaidOut: null,
   connected: false,
+  // False until the first tasks snapshot lands. Without it an empty state.tasks
+  // is indistinguishable from "this family has no tasks", so the app cheerfully
+  // announces "fri leg!" while it is still loading.
+  loaded: false,
+  // navigator.onLine, kept in state so a render can read it synchronously.
+  // Firestore's offline cache means onSnapshot often keeps succeeding with no
+  // network, so `connected` alone never notices that the device dropped off.
+  online: navigator.onLine,
   view: "idag",
   weekOffset: 0,
   lastSeenDay: null,

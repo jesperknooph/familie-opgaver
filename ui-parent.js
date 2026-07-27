@@ -24,6 +24,7 @@ import {
   updateWithTransition,
   openSheet,
   fieldError,
+  skeletonRows,
 } from "./ui-common.js";
 import {
   tasksCol,
@@ -43,10 +44,14 @@ export function renderParentMode() {
   // Update sync status
   const syncStatus = document.getElementById("syncStatus");
   if (syncStatus) {
-    syncStatus.title = state.connected ? "Forbundet" : "Forbinder...";
+    // Offline wins over `connected`: Firestore keeps answering from its cache
+    // with no network, so claiming "synkroniseret" there would be a lie.
+    const ok = state.connected && state.online;
+    syncStatus.title = !state.online ? "Offline — ændringer sendes når du er online igen"
+      : state.connected ? "Forbundet" : "Forbinder...";
     syncStatus.innerHTML = `
-      <span class="sync-dot ${state.connected ? "" : "pulse"}"></span>
-      <span class="sync-text">${state.connected ? "synkroniseret" : "forbinder"}</span>
+      <span class="sync-dot ${ok ? "" : "pulse"}"></span>
+      <span class="sync-text">${!state.online ? "offline" : state.connected ? "synkroniseret" : "forbinder"}</span>
     `;
   }
 
@@ -55,8 +60,11 @@ export function renderParentMode() {
   const doneCount = state.tasks.length - openCount;
   const countsElement = document.getElementById("taskCounts");
   if (countsElement) {
-    countsElement.textContent = 
-      openCount === 0 ? "Alt er gjort." : `${openCount} tilbage · ${doneCount} klaret`;
+    countsElement.textContent = !state.loaded && state.tasks.length === 0
+      ? "Henter opgaver …"
+      : openCount === 0
+        ? "Alt er gjort."
+        : `${openCount} tilbage · ${doneCount} klaret`;
   }
 
   // Update user bar
@@ -294,7 +302,9 @@ export function listSection(visible) {
       }
       ${
         visible.length === 0
-          ? `<div class="empty"><span class="empty-emoji">🌈</span>Ingen opgaver her.</div>`
+          ? state.loaded
+            ? `<div class="empty"><span class="empty-emoji">🌈</span>Ingen opgaver her.</div>`
+            : skeletonRows()
           : visible.map(taskRow).join("")
       }
     </section>`;
@@ -329,7 +339,11 @@ export function todaySection(visible) {
       <div class="today-head">
         <span class="today-day">${dateLabel}</span>
         <span class="today-count">${
-          todoCount === 0 ? "alt klaret 🎉" : `${todoCount} at gøre`
+          !state.loaded && totalCount === 0
+            ? "henter …"
+            : todoCount === 0
+              ? "alt klaret 🎉"
+              : `${todoCount} at gøre`
         }</span>
       </div>
 
@@ -366,7 +380,7 @@ export function todaySection(visible) {
           : ""
       }
 
-      ${nothing ? `<div class="empty"><span class="empty-emoji">🎈</span>Ingen opgaver i dag – fri leg!</div>` : ""}
+      ${nothing ? (state.loaded ? `<div class="empty"><span class="empty-emoji">🎈</span>Ingen opgaver i dag – fri leg!</div>` : skeletonRows()) : ""}
     </section>`;
 }
 

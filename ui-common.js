@@ -117,6 +117,14 @@ export function openSheet(id) {
   return { host, mount, close };
 }
 
+// Placeholder rows for the gap between first paint and the first snapshot.
+// Both modes use it, so it lives here rather than in either one.
+export function skeletonRows(n = 3, kid = false) {
+  return `<div aria-busy="true" aria-label="Henter opgaver">${
+    `<div class="skeleton-row${kid ? " kid" : ""}"></div>`.repeat(n)
+  }</div>`;
+}
+
 /* --- Inline field validation ---
    Replaces alert() for "you left this empty" cases: the message appears next to
    the offending field, focus moves there, and it clears as soon as you type. */

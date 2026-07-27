@@ -66,15 +66,30 @@ onSnapshot(
   (snapshot) => {
     state.tasks = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
     state.connected = true;
+    state.loaded = true;
     updateWithTransition();
     scheduleReminders();
   },
   (err) => {
     console.error("Firestore sync error:", err);
     state.connected = false;
+    // The listener has answered, even if it answered with an error — keep
+    // showing skeletons and we'd loop forever on a permissions failure.
+    state.loaded = true;
     updateWithTransition();
   }
 );
+
+// Firestore's cache hides network loss from onSnapshot, so the browser's own
+// online/offline events are what actually tell a kid their tick hasn't synced.
+window.addEventListener("online", () => {
+  state.online = true;
+  updateWithTransition();
+});
+window.addEventListener("offline", () => {
+  state.online = false;
+  updateWithTransition();
+});
 
 state.lastSeenDay = ymd(new Date());
 render();

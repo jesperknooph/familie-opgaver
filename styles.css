@@ -18,6 +18,7 @@
   --focus-ring: #6D5CF0;
   --danger: #DC2626;
   --danger-bg: #FEE2E2;
+  --skeleton-sheen: #DCE3F5;
   --gold-grad: linear-gradient(135deg, #FFE08A 0%, #FFC53D 100%);
   --money-grad: linear-gradient(135deg, #6EE7B7 0%, #10B981 100%);
 
@@ -370,6 +371,47 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
 /* Freeze the page behind an open sheet so scrolling can't leak through. */
 body.sheet-open {
   overflow: hidden;
+}
+
+/* --- Loading skeletons ---
+   Shown until the first Firestore snapshot lands, so a slow connection reads as
+   "loading" instead of the empty state claiming there is nothing to do. */
+.skeleton-row {
+  height: 62px;
+  margin-bottom: 10px;
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--card-border);
+  background: linear-gradient(
+    100deg,
+    var(--card-bg) 30%,
+    var(--skeleton-sheen) 50%,
+    var(--card-bg) 70%
+  );
+  background-size: 300% 100%;
+  animation: skeleton-sweep 1.5s ease-in-out infinite;
+}
+.skeleton-row.kid {
+  height: 76px;
+  margin-bottom: 12px;
+  border-radius: var(--border-radius-lg);
+}
+@keyframes skeleton-sweep {
+  from { background-position: 150% 0; }
+  to { background-position: -50% 0; }
+}
+
+/* --- Kid-mode offline pill --- */
+.kid-offline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 6px 12px;
+  border-radius: 99px;
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: 12.5px;
+  font-weight: 700;
 }
 
 /* Inline validation, replacing the native alert()s. */
@@ -1706,6 +1748,10 @@ svg.icon {
   .input.shake {
     animation: none !important;
   }
+  /* Skeletons stay (they still say "loading"), they just stop sweeping. */
+  .skeleton-row {
+    animation: none !important;
+  }
 }
 
 /* --- Dark mode ---
@@ -1729,6 +1775,7 @@ html.dark {
   --focus-ring: #9B8CFF;
   --danger: #FCA5A5;
   --danger-bg: rgba(220, 38, 38, 0.18);
+  --skeleton-sheen: #1D2745;
 }
 
 html.dark body {
