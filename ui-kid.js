@@ -13,8 +13,14 @@ import {
   DAY_NAMES,
   MONTHS,
 } from "./utils.js";
-import { confettiBurst, toggleTheme, updateWithTransition } from "./ui-common.js";
-import { tasksCol, toggleDone, saveLook } from "./db-service.js";
+import {
+  confettiBurst,
+  toggleTheme,
+  updateWithTransition,
+  openSheet,
+  fieldError,
+} from "./ui-common.js";
+import { tasksCol, toggleDone, saveLook, showToast } from "./db-service.js";
 import { signOut } from "./auth.js";
 
 const KID_CHECK_SVG = `<svg width="22" height="22" viewBox="0 0 24 24"><path d="M5 13l5 5L20 7" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -254,22 +260,12 @@ export function kidCelebrate() {
 const KID_EMOJI_QUICKPICKS = ["🧹", "🧸", "📚", "🦷", "🚿", "🍽️", "🐕", "🎵", "⚽", "🎮", "🎨", "🧽"];
 
 export function openKidAddSheet() {
-  let host = document.getElementById("kidAddSheet");
-  if (!host) {
-    host = document.createElement("div");
-    host.id = "kidAddSheet";
-    host.style.cssText = "position:fixed; inset:0; z-index:1150;";
-    document.body.appendChild(host);
-  }
+  const { host, mount, close } = openSheet("kidAddSheet");
 
   let emoji = "🧹";
   let when = "today";
   let pickedDate = "";
   let busy = false;
-
-  function close() {
-    host.remove();
-  }
 
   function dueFor() {
     if (when === "tomorrow") return ymd(addDays(new Date(), 1));
@@ -277,8 +273,7 @@ export function openKidAddSheet() {
     return ymd(new Date());
   }
 
-  host.innerHTML = `
-    <div class="modal-wrap">
+  mount(`
       <div class="modal-card kid-add-card">
         <div class="modal-head">
           <h2 class="modal-title">Ny opgave ✨</h2>
@@ -305,13 +300,7 @@ export function openKidAddSheet() {
           <button class="btn-ghost" data-close="1">Annullér</button>
           <button class="btn-primary" id="kidAddSave">Tilføj ✨</button>
         </div>
-      </div>
-    </div>`;
-
-  host.querySelectorAll("[data-close]").forEach((el) => (el.onclick = close));
-  host.querySelector(".modal-wrap").onclick = (e) => {
-    if (e.target === e.currentTarget) close();
-  };
+      </div>`);
 
   host.querySelectorAll("[data-emoji]").forEach((el) => {
     el.onclick = () => {
@@ -352,8 +341,9 @@ export function openKidAddSheet() {
 
   async function save() {
     if (busy) return;
-    const label = host.querySelector("#kidAddLabel").value.trim();
-    if (!label) return alert("Skriv hvad du skal lave 🙂");
+    const labelInput = host.querySelector("#kidAddLabel");
+    const label = labelInput.value.trim();
+    if (!label) return fieldError(labelInput, "Skriv hvad du skal lave 🙂");
     const data = {
       label,
       emoji: emoji || null,
@@ -375,7 +365,7 @@ export function openKidAddSheet() {
       console.error("Kid adding task failed:", e);
       busy = false;
       saveBtn.innerHTML = "Tilføj ✨";
-      alert("Kunne ikke gemme opgaven. Er du online?");
+      showToast("Kunne ikke gemme opgaven. Er du online?");
     }
   }
 
@@ -386,25 +376,14 @@ export function openKidAddSheet() {
 }
 
 export function openLookSheet() {
-  let host = document.getElementById("lookSheet");
-  if (!host) {
-    host = document.createElement("div");
-    host.id = "lookSheet";
-    host.style.cssText = "position:fixed; inset:0; z-index:1150;";
-    document.body.appendChild(host);
-  }
+  const { host, mount } = openSheet("lookSheet");
   const me = state.currentUser.name;
   const faces = [me[0], ...LOOK_FACES];
-
-  function close() {
-    host.remove();
-  }
 
   function draw() {
     const face = faceFor(me);
     const color = colorFor(me);
-    host.innerHTML = `
-      <div class="modal-wrap">
+    mount(`
         <div class="modal-card">
           <div class="modal-head">
             <h2 class="modal-title">Vælg dit look</h2>
@@ -429,8 +408,7 @@ export function openLookSheet() {
           <div class="sheet-actions">
             <button class="btn-primary" data-close="1">Færdig</button>
           </div>
-        </div>
-      </div>`;
+        </div>`);
 
     host.querySelectorAll("[data-face]").forEach((el) => {
       el.onclick = () => {
@@ -448,10 +426,6 @@ export function openLookSheet() {
         draw();
       };
     });
-    host.querySelectorAll("[data-close]").forEach((el) => (el.onclick = close));
-    host.querySelector(".modal-wrap").onclick = (e) => {
-      if (e.target === e.currentTarget) close();
-    };
   }
 
   draw();

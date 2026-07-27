@@ -213,11 +213,15 @@ export function dismissUndo() {
   }
 }
 
+// Class names here must stay in step with the .undo-snackbar / .undo-text rules
+// in styles.css — they had drifted apart, which left the snackbar unstyled and
+// unpositioned at the end of the page.
 export function showToast(msg) {
   dismissUndo();
   const el = document.createElement("div");
-  el.className = "toast show";
-  el.textContent = msg;
+  el.className = "undo-snackbar toast";
+  el.innerHTML = `<span class="undo-text"></span>`;
+  el.querySelector(".undo-text").textContent = msg;
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 4000);
 }
@@ -225,12 +229,12 @@ export function showToast(msg) {
 export function showUndo(t) {
   dismissUndo();
   const el = document.createElement("div");
-  el.className = "toast show toast-undo";
+  el.className = "undo-snackbar";
   el.innerHTML = `
-    <span>Slettet "${escapeHtml(t.label)}".</span>
+    <span class="undo-text">Slettet "${escapeHtml(t.label)}".</span>
     <button class="undo-btn">Fortryd</button>`;
   document.body.appendChild(el);
-  
+
   el.querySelector(".undo-btn").onclick = async () => {
     const { id, ...data } = t;
     dismissUndo();
@@ -238,7 +242,7 @@ export function showUndo(t) {
       await setDoc(doc(tasksCol, id), data);
     } catch (e) {
       console.error("Undo failed:", e);
-      alert("Kunne ikke gendanne opgaven. Er du online?");
+      showToast("Kunne ikke gendanne opgaven. Er du online?");
     }
   };
   state.undoState = { el, timer: setTimeout(dismissUndo, 6000) };

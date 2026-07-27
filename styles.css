@@ -15,6 +15,9 @@
 
   --accent: #6D5CF0;
   --accent-grad: linear-gradient(135deg, #14B69B 0%, #6D5CF0 100%); /* aurora */
+  --focus-ring: #6D5CF0;
+  --danger: #DC2626;
+  --danger-bg: #FEE2E2;
   --gold-grad: linear-gradient(135deg, #FFE08A 0%, #FFC53D 100%);
   --money-grad: linear-gradient(135deg, #6EE7B7 0%, #10B981 100%);
 
@@ -70,6 +73,25 @@ button, .avatar, .assign-chip, .key {
 }
 button:active, .avatar:active, .assign-chip:active, .key:active {
   transform: scale(0.92);
+}
+
+/* Keyboard focus. :focus-visible (not :focus) means pointer taps stay clean —
+   which matters here because the tap highlight is cleared above — while tabbing
+   or navigating with assistive tech shows where you are. No border-radius in
+   this rule: the outline already follows each element's own radius, and setting
+   one would square off the round avatars, check buttons and FAB. */
+:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+.input:focus-visible, .date-input:focus-visible {
+  outline-offset: 1px;
+}
+/* The sheet card itself is focused on open (see openSheet in ui-common.js) so
+   the dialog is announced and the tab trap has an anchor — but it's a container,
+   not a control, so it shouldn't draw a ring. */
+.modal-card:focus-visible {
+  outline: none;
 }
 
 /* --- Header Section --- */
@@ -338,13 +360,47 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
   display: none;
 }
 
-/* --- Add/edit sheets (pop-out task forms) --- */
-#editSheet,
-#addSheet {
+/* --- Sheets (every pop-out: add, edit, look, settings, PIN reset, payout) ---
+   One rule for all of them; openSheet() in ui-common.js builds the host. */
+.sheet-host {
   position: fixed;
   inset: 0;
   z-index: 1150;
 }
+/* Freeze the page behind an open sheet so scrolling can't leak through. */
+body.sheet-open {
+  overflow: hidden;
+}
+
+/* Inline validation, replacing the native alert()s. */
+.field-error {
+  margin: 8px 2px 0;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-radius: var(--border-radius-sm);
+}
+/* Has to out-specify both `html.dark .input` and `.input:focus` — the latter
+   because fieldError() focuses the field it marks, so the plain .invalid rule
+   would be overridden the instant the error appeared. */
+.input.invalid,
+.input.invalid:focus,
+html.dark .input.invalid,
+html.dark .input.invalid:focus {
+  border-color: var(--danger);
+}
+.input.shake {
+  animation: field-shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+@keyframes field-shake {
+  10%, 90% { transform: translateX(-2px); }
+  20%, 80% { transform: translateX(3px); }
+  30%, 50%, 70% { transform: translateX(-5px); }
+  40%, 60% { transform: translateX(5px); }
+}
+
 .edit-card {
   max-width: 440px;
 }
@@ -447,13 +503,6 @@ button:active, .avatar:active, .assign-chip:active, .key:active {
 }
 
 /* --- Admin: PIN reset modal --- */
-#pinReset,
-#payoutSheet,
-#settingsSheet {
-  position: fixed;
-  inset: 0;
-  z-index: 1100;
-}
 .modal-wrap {
   min-height: 100vh;
   background: rgba(19, 26, 49, 0.4);
@@ -1653,6 +1702,10 @@ svg.icon {
   ::view-transition-new(*) {
     animation: none !important;
   }
+  /* The invalid field still turns red and takes focus — only the shake goes. */
+  .input.shake {
+    animation: none !important;
+  }
 }
 
 /* --- Dark mode ---
@@ -1671,6 +1724,11 @@ html.dark {
   --card-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.2);
   --card-shadow-md: 0 12px 24px -10px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.25);
   --card-shadow-lg: 0 20px 40px -15px rgba(0, 0, 0, 0.6), 0 8px 20px -5px rgba(0, 0, 0, 0.3);
+  /* --accent on the near-black ground is too dim to read as a focus ring, so
+     the ring lightens rather than inheriting it. Same for the error red. */
+  --focus-ring: #9B8CFF;
+  --danger: #FCA5A5;
+  --danger-bg: rgba(220, 38, 38, 0.18);
 }
 
 html.dark body {

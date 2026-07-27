@@ -18,7 +18,13 @@ import {
 } from "./utils.js";
 import { MEMBERS, isAdmin, resetPin, signOut } from "./auth.js";
 import { TASK_TEMPLATES } from "./templates.js";
-import { confettiBurst, toggleTheme, updateWithTransition } from "./ui-common.js";
+import {
+  confettiBurst,
+  toggleTheme,
+  updateWithTransition,
+  openSheet,
+  fieldError,
+} from "./ui-common.js";
 import {
   tasksCol,
   completionsCol,
@@ -26,6 +32,7 @@ import {
   toggleDone,
   removeTask,
   clearDone,
+  showToast,
 } from "./db-service.js";
 
 export function renderParentMode() {
@@ -435,12 +442,7 @@ export function weekSection(visible) {
 }
 
 export function openAddSheet() {
-  let host = document.getElementById("addSheet");
-  if (!host) {
-    host = document.createElement("div");
-    host.id = "addSheet";
-    document.body.appendChild(host);
-  }
+  const { host, mount, close } = openSheet("addSheet");
 
   let due = "";
   let time = "";
@@ -450,12 +452,7 @@ export function openAddSheet() {
   let showTpl = false;
   let busy = false;
 
-  function close() {
-    host.remove();
-  }
-
-  host.innerHTML = `
-    <div class="modal-wrap">
+  mount(`
       <div class="modal-card edit-card">
         <div class="modal-head">
           <h2 class="modal-title">Ny opgave</h2>
@@ -497,8 +494,7 @@ export function openAddSheet() {
           <button class="btn-ghost" data-close="1">Annullér</button>
           <button class="btn-primary" id="addSave">Tilføj</button>
         </div>
-      </div>
-    </div>`;
+      </div>`);
 
   const dueInput = host.querySelector("#addDue");
   const timeInput = host.querySelector("#addTime");
@@ -547,10 +543,10 @@ export function openAddSheet() {
     btn.classList.toggle("disabled", !supported);
     btn.textContent = alarm ? "🔔 Alarm til" : "🔔 Alarm";
     btn.onclick = async () => {
-      if (!supported) return alert("Denne enhed understøtter ikke notifikationer.");
+      if (!supported) return showToast("Denne enhed understøtter ikke notifikationer.");
       if (alarm) { alarm = false; return drawAlarm(); }
       if (Notification.permission === "denied")
-        return alert("Notifikationer er blokeret. Tillad dem i browserens indstillinger for siden.");
+        return showToast("Notifikationer er blokeret. Tillad dem i browserens indstillinger for siden.");
       if (Notification.permission === "default") {
         const perm = await Notification.requestPermission();
         if (perm !== "granted") return;
@@ -604,15 +600,11 @@ export function openAddSheet() {
     });
   }
 
-  host.querySelectorAll("[data-close]").forEach((el) => (el.onclick = close));
-  host.querySelector(".modal-wrap").onclick = (e) => {
-    if (e.target === e.currentTarget) close();
-  };
-
   async function save() {
     if (busy) return;
-    const label = host.querySelector("#addLabel").value.trim();
-    if (!label) return alert("Opgaven skal have en tekst.");
+    const labelInput = host.querySelector("#addLabel");
+    const label = labelInput.value.trim();
+    if (!label) return fieldError(labelInput, "Opgaven skal have en tekst.");
     const emoji = host.querySelector("#addEmoji").value.trim();
     const money = Number(host.querySelector("#addMoneyInput").value) || null;
     const needsAnchor = repeat || (alarm && time);
@@ -640,7 +632,7 @@ export function openAddSheet() {
       console.error("Adding task failed:", e);
       busy = false;
       saveBtn.textContent = "Tilføj";
-      alert("Kunne ikke gemme opgaven. Er du online?");
+      showToast("Kunne ikke gemme opgaven. Er du online?");
     }
   }
 
@@ -655,12 +647,7 @@ export function openAddSheet() {
 }
 
 export function openEditSheet(t) {
-  let host = document.getElementById("editSheet");
-  if (!host) {
-    host = document.createElement("div");
-    host.id = "editSheet";
-    document.body.appendChild(host);
-  }
+  const { host, mount, close } = openSheet("editSheet");
 
   let due = t.due || "";
   let time = t.time || "";
@@ -669,12 +656,7 @@ export function openEditSheet(t) {
   let assignees = t.rotation && t.rotation.length > 1 ? [...t.rotation] : [t.assignedTo];
   let busy = false;
 
-  function close() {
-    host.remove();
-  }
-
-  host.innerHTML = `
-    <div class="modal-wrap">
+  mount(`
       <div class="modal-card edit-card">
         <div class="modal-head">
           <h2 class="modal-title">Ret opgave</h2>
@@ -713,8 +695,7 @@ export function openEditSheet(t) {
           <button class="btn-ghost" data-close="1">Annullér</button>
           <button class="btn-primary" id="editSave">Gem</button>
         </div>
-      </div>
-    </div>`;
+      </div>`);
 
   const dueInput = host.querySelector("#editDue");
   const timeInput = host.querySelector("#editTime");
@@ -728,10 +709,10 @@ export function openEditSheet(t) {
     btn.classList.toggle("disabled", !supported);
     btn.textContent = alarm ? "🔔 Alarm til" : "🔔 Alarm";
     btn.onclick = async () => {
-      if (!supported) return alert("Denne enhed understøtter ikke notifikationer.");
+      if (!supported) return showToast("Denne enhed understøtter ikke notifikationer.");
       if (alarm) { alarm = false; return drawAlarm(); }
       if (Notification.permission === "denied")
-        return alert("Notifikationer er blokeret. Tillad dem i browserens indstillinger for siden.");
+        return showToast("Notifikationer er blokeret. Tillad dem i browserens indstillinger for siden.");
       if (Notification.permission === "default") {
         const perm = await Notification.requestPermission();
         if (perm !== "granted") return;
@@ -790,15 +771,11 @@ export function openEditSheet(t) {
     }
   }
 
-  host.querySelectorAll("[data-close]").forEach((el) => (el.onclick = close));
-  host.querySelector(".modal-wrap").onclick = (e) => {
-    if (e.target === e.currentTarget) close();
-  };
-
   host.querySelector("#editSave").onclick = async () => {
     if (busy) return;
-    const label = host.querySelector("#editLabel").value.trim();
-    if (!label) return alert("Opgaven skal have en tekst.");
+    const labelInput = host.querySelector("#editLabel");
+    const label = labelInput.value.trim();
+    if (!label) return fieldError(labelInput, "Opgaven skal have en tekst.");
     const emoji = host.querySelector("#editEmoji").value.trim();
     const money = Number(host.querySelector("#editMoneyInput").value) || null;
     const needsAnchor = repeat || (alarm && time);
@@ -824,7 +801,7 @@ export function openEditSheet(t) {
       console.error("Saving task failed:", e);
       busy = false;
       saveBtn.textContent = "Gem";
-      alert("Kunne ikke gemme ændringerne. Er du online?");
+      showToast("Kunne ikke gemme ændringerne. Er du online?");
     }
   };
 
@@ -833,21 +810,11 @@ export function openEditSheet(t) {
 }
 
 export function openSettingsSheet() {
-  let host = document.getElementById("settingsSheet");
-  if (!host) {
-    host = document.createElement("div");
-    host.id = "settingsSheet";
-    document.body.appendChild(host);
-  }
-
-  function close() {
-    host.remove();
-  }
+  const { host, mount, close } = openSheet("settingsSheet");
 
   function draw() {
     const dark = document.documentElement.classList.contains("dark");
-    host.innerHTML = `
-      <div class="modal-wrap">
+    mount(`
         <div class="modal-card">
           <div class="modal-head">
             <h2 class="modal-title">Indstillinger</h2>
@@ -858,12 +825,7 @@ export function openSettingsSheet() {
             <button class="settings-row" id="setResetPin">🔑 Nulstil PIN-kode</button>
             <button class="settings-row danger" id="setLogout">🚪 Log ud</button>
           </div>
-        </div>
-      </div>`;
-    host.querySelector("[data-close]").onclick = close;
-    host.querySelector(".modal-wrap").onclick = (e) => {
-      if (e.target === e.currentTarget) close();
-    };
+        </div>`);
     host.querySelector("#setTheme").onclick = () => {
       toggleTheme();
       draw();
@@ -879,18 +841,9 @@ export function openSettingsSheet() {
 }
 
 export function openResetPanel() {
-  let host = document.getElementById("pinReset");
-  if (!host) {
-    host = document.createElement("div");
-    host.id = "pinReset";
-    document.body.appendChild(host);
-  }
+  const { host, mount } = openSheet("pinReset");
   const others = MEMBERS.filter((m) => m.name !== state.currentUser.name);
   const status = {};
-
-  function close() {
-    host.remove();
-  }
 
   async function doReset(name) {
     if (!confirm(`Nulstil PIN for ${name}? De vælger en ny ved næste login.`)) return;
@@ -902,14 +855,13 @@ export function openResetPanel() {
     } catch (e) {
       console.error("PIN reset failed:", e);
       delete status[name];
-      alert("Kunne ikke nulstille PIN. Er du online?");
+      showToast("Kunne ikke nulstille PIN. Er du online?");
     }
     draw();
   }
 
   function draw() {
-    host.innerHTML = `
-      <div class="modal-wrap">
+    mount(`
         <div class="modal-card">
           <div class="modal-head">
             <h2 class="modal-title">Nulstil PIN-kode</h2>
@@ -935,10 +887,8 @@ export function openResetPanel() {
               .join("")}
           </div>
           <p class="modal-note">Adgangen bevares — personen bliver blot bedt om at vælge en ny PIN næste gang.</p>
-        </div>
-      </div>`;
+        </div>`);
 
-    host.querySelector("[data-close]").onclick = close;
     host.querySelectorAll("[data-reset]").forEach((el) => {
       el.onclick = () => doReset(el.dataset.reset);
     });
@@ -948,12 +898,7 @@ export function openResetPanel() {
 }
 
 export async function openPayoutSheet() {
-  let host = document.getElementById("payoutSheet");
-  if (!host) {
-    host = document.createElement("div");
-    host.id = "payoutSheet";
-    document.body.appendChild(host);
-  }
+  const { host, mount } = openSheet("payoutSheet");
 
   let earned = {};
   let earnings = [];
@@ -964,10 +909,6 @@ export async function openPayoutSheet() {
   const histOpen = {};
   const earnOpen = {};
   const busy = {};
-
-  function close() {
-    host.remove();
-  }
 
   async function load() {
     loading = true;
@@ -1017,7 +958,7 @@ export async function openPayoutSheet() {
       });
     } catch (e) {
       console.error("Payout failed:", e);
-      alert("Kunne ikke gemme udbetalingen. Er du online?");
+      showToast("Kunne ikke gemme udbetalingen. Er du online?");
     }
     busy[name] = false;
     await load();
@@ -1029,7 +970,7 @@ export async function openPayoutSheet() {
       await deleteDoc(doc(payoutsCol, id));
     } catch (e) {
       console.error("Undo payout failed:", e);
-      alert("Kunne ikke fjerne udbetalingen. Er du online?");
+      showToast("Kunne ikke fjerne udbetalingen. Er du online?");
     }
     await load();
   }
@@ -1124,8 +1065,7 @@ export async function openPayoutSheet() {
         .join("");
     }
 
-    host.innerHTML = `
-      <div class="modal-wrap">
+    mount(`
         <div class="modal-card">
           <div class="modal-head">
             <h2 class="modal-title">💰 Lommepenge</h2>
@@ -1133,13 +1073,8 @@ export async function openPayoutSheet() {
           </div>
           <p class="modal-sub">Til gode = optjent minus udbetalt. Udbetalinger gemmes som historik.</p>
           <div class="payout-list">${body}</div>
-        </div>
-      </div>`;
+        </div>`);
 
-    host.querySelector("[data-close]").onclick = close;
-    host.querySelector(".modal-wrap").onclick = (ev) => {
-      if (ev.target === ev.currentTarget) close();
-    };
     host.querySelectorAll("[data-pay]").forEach((el) => {
       el.onclick = () => {
         payingFor = el.dataset.pay;
@@ -1155,8 +1090,9 @@ export async function openPayoutSheet() {
     host.querySelectorAll("[data-payconfirm]").forEach((el) => {
       el.onclick = () => {
         const name = el.dataset.payconfirm;
-        const amt = Math.round(Number(host.querySelector(".payout-amount").value));
-        if (!(amt > 0)) return alert("Skriv et beløb større end 0.");
+        const amountInput = host.querySelector(".payout-amount");
+        const amt = Math.round(Number(amountInput.value));
+        if (!(amt > 0)) return fieldError(amountInput, "Skriv et beløb større end 0.");
         pay(name, amt);
       };
     });
