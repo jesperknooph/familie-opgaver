@@ -44,14 +44,14 @@ git add -A
 git commit -m "$msg"
 git push
 
-echo ""
-echo "Pushed to GitHub. Waiting for Netlify to publish $next …"
-
 # Poll the live service worker rather than the Netlify API: it needs no CLI, no
 # login and no site id, and it answers the question we actually care about —
 # has the new version reached the devices the family uses?
 site="${DEPLOY_URL_BASE:-https://kh-opgaver.netlify.app}"
 timeout="${DEPLOY_TIMEOUT:-180}"
+
+echo ""
+echo "Pushed. Waiting for $site to publish $next …"
 
 live=""
 deadline=$((SECONDS + timeout))
