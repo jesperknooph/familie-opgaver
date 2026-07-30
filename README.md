@@ -88,5 +88,12 @@ Hosted on **Netlify**, auto-deploying from the `main` branch of
 ```bash
 git add -A && git commit -m "describe the change" && git push
 ```
-Netlify rebuilds and publishes in ~30s. (There's no build step — `netlify.toml`
-sets publish directory to the repo root.)
+Netlify normally rebuilds and publishes in ~30s. (There's no build step —
+`netlify.toml` sets publish directory to the repo root.)
+
+Prefer `./deploy.sh "message"`: it bumps the service-worker cache version and
+then **waits for the new version to actually appear on the live site**, exiting
+non-zero if it doesn't. A push is not a deploy — builds can be skipped (e.g. when
+the Netlify account's credit limit is hit, which silently blocked every deploy
+from 2026-07-19 onward), and without that check a failed deploy looks identical
+to a successful one.

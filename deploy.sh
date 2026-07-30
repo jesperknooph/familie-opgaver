@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 #
 # One-command deploy for familie-opgaver.
-# Commits all changes to main and pushes — Netlify then auto-publishes
-# kh-opgaver.netlify.app within ~30 seconds.
+# Commits all changes to main, pushes, and then waits for the new version to
+# actually appear on kh-opgaver.netlify.app before reporting success.
+#
+# That last part matters: this script used to print "Netlify is now building"
+# unconditionally, so when Netlify started skipping builds (2026-07-19, account
+# credit limit) every deploy still looked like it had worked. Six commits piled
+# up unpublished before anyone noticed. A push is not a deploy — so we check.
 #
 # Usage:
 #   ./deploy.sh "describe what you changed"
@@ -40,5 +45,35 @@ git commit -m "$msg"
 git push
 
 echo ""
-echo "✅ Pushed to GitHub. Netlify is now building."
-echo "   Live in ~30s at https://kh-opgaver.netlify.app/"
+echo "Pushed to GitHub. Waiting for Netlify to publish $next …"
+
+# Poll the live service worker rather than the Netlify API: it needs no CLI, no
+# login and no site id, and it answers the question we actually care about —
+# has the new version reached the devices the family uses?
+site="${DEPLOY_URL_BASE:-https://kh-opgaver.netlify.app}"
+timeout="${DEPLOY_TIMEOUT:-180}"
+
+live=""
+deadline=$((SECONDS + timeout))
+while ((SECONDS < deadline)); do
+  # cache-buster: the CDN may hold a stale copy even with must-revalidate.
+  live="$(curl -fsS --max-time 10 "$site/service-worker.js?cb=$RANDOM" 2>/dev/null \
+    | grep -oE 'familie-opgaver-v[0-9]+' | head -1 || true)"
+  if [ "$live" = "$next" ]; then
+    echo ""
+    echo "✅ Live at $site/ ($next)"
+    exit 0
+  fi
+  sleep 5
+done
+
+echo ""
+echo "⚠️  NOT PUBLISHED after ${timeout}s."
+echo "   Expected: $next"
+echo "   Live now: ${live:-could not reach the site}"
+echo ""
+echo "   Your commit is safely on GitHub — nothing is lost, it just isn't served yet."
+echo "   Check the deploy log:  https://app.netlify.com/projects/kh-opgaver/deploys"
+echo "   (If builds say \"Skipped due to account credit usage exceeded\", that is"
+echo "    the account limit, not your code — it resets at the usage period start.)"
+exit 1
