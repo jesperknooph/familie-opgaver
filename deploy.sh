@@ -47,7 +47,8 @@ git push
 # Poll the live service worker rather than the Netlify API: it needs no CLI, no
 # login and no site id, and it answers the question we actually care about —
 # has the new version reached the devices the family uses?
-site="${DEPLOY_URL_BASE:-https://kh-opgaver.netlify.app}"
+default_site="https://kh-opgaver.netlify.app"
+site="${DEPLOY_URL_BASE:-$default_site}"
 timeout="${DEPLOY_TIMEOUT:-180}"
 
 echo ""
@@ -73,7 +74,11 @@ echo "   Expected: $next"
 echo "   Live now: ${live:-could not reach the site}"
 echo ""
 echo "   Your commit is safely on GitHub — nothing is lost, it just isn't served yet."
-echo "   Check the deploy log:  https://app.netlify.com/projects/kh-opgaver/deploys"
-echo "   (If builds say \"Skipped due to account credit usage exceeded\", that is"
-echo "    the account limit, not your code — it resets at the usage period start.)"
+# Only the real site is served by our Netlify project; pointing at a deploy log
+# for some other host would be misleading.
+if [ "$site" = "$default_site" ]; then
+  echo "   Check the deploy log:  https://app.netlify.com/projects/kh-opgaver/deploys"
+  echo "   (If builds say \"Skipped due to account credit usage exceeded\", that is"
+  echo "    the account limit, not your code — it resets at the usage period start.)"
+fi
 exit 1
