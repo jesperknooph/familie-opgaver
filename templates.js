@@ -13,9 +13,12 @@ export const TASK_TEMPLATES = [
   { emoji: "🧹", label: "Støvsug" },
   { emoji: "🗑️", label: "Tag skraldet ud" },
   { emoji: "♻️", label: "Pante flasker" },
+  { emoji: "👕", label: "Hæng vasketøj op" },
+  { emoji: "🧦", label: "Læg tøj sammen" },
   { emoji: "🧺", label: "Læg tøj på plads" },
   { emoji: "🧸", label: "Ryd værelse op" },
   { emoji: "🛏️", label: "Red seng" },
+  { emoji: "🛌", label: "Skift sengetøj" },
   { emoji: "🚗", label: "Rengør bil" },
 
   // Dyr & have
@@ -23,11 +26,13 @@ export const TASK_TEMPLATES = [
   { emoji: "🦴", label: "Giv Abbey mad" },
   { emoji: "🪴", label: "Vand blomster" },
   { emoji: "🌿", label: "Fjerne ukrudt" },
+  { emoji: "🚜", label: "Slå græs" },
 
   // Skole & musik
   { emoji: "📚", label: "Lav lektier" },
   { emoji: "🎵", label: "Øv musik med far" },
   { emoji: "🎒", label: "Pak skoletaske" },
+  { emoji: "📖", label: "Læs 20 minutter" },
 
   // Personligt
   { emoji: "🦷", label: "Børst tænder" },
