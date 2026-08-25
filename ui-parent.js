@@ -601,7 +601,9 @@ export function openAddSheet() {
   let alarm = false;
   let repeat = null;
   let assignees = [state.currentUser.name];
-  let showTpl = false;
+  // Templates cover most new tasks, so on desktop the sheet opens on the
+  // gallery rather than an empty text field: n → arrows → Enter.
+  let showTpl = hasKeyboard();
   let busy = false;
 
   mount(`
@@ -685,16 +687,25 @@ export function openAddSheet() {
         drawChips();
         showTpl = false;
         drawTemplates();
-        // The template filled the fields in; the next thing anyone does is
-        // adjust the text, so put the caret there rather than back on a
-        // gallery that just closed.
-        host.querySelector("#addLabel").focus();
+        // The template already settled the name and the icon; what's still
+        // open is when it's due, so the caret goes to the date rather than
+        // back to a gallery that just closed.
+        host.querySelector("#addDue").focus();
       };
     });
     // 30-odd chips would otherwise be 30 tab stops between the toggle and the
     // text field. One stop, arrows to move — and opening the gallery from the
     // keyboard jumps straight into it.
     roving(gallery, "[data-template]", { grid: true });
+
+    // Landing on the gallery must not trap you there: type any letter and the
+    // keystroke goes to the name field, as if you had started there. Space is
+    // left alone — on a focused chip that's "pick this one".
+    gallery.onkeydown = (e) => {
+      if (e.key.length !== 1 || e.key === " " || e.metaKey || e.ctrlKey || e.altKey) return;
+      host.querySelector("#addLabel").focus();
+    };
+
     if (focusGallery) gallery.querySelector('[data-template][tabindex="0"]')?.focus();
   }
 
@@ -809,18 +820,26 @@ export function openAddSheet() {
   }
 
   host.querySelector("#addSave").onclick = save;
+  // Enter finishes the task from either field the keyboard flow ends on: the
+  // name, when it was typed from scratch, or the date, when a template already
+  // filled the rest in.
   host.querySelector("#addLabel").onkeydown = (e) => {
     if (e.key === "Enter") save();
   };
+  dueInput.onkeydown = (e) => {
+    if (e.key !== "Enter") return;
+    // change hasn't necessarily fired yet for a date typed segment by segment,
+    // so take the value straight off the field rather than trusting `due`.
+    due = dueInput.value;
+    save();
+  };
 
-  drawTemplates();
+  // openSheet deliberately focuses nothing — on a phone that throws the
+  // on-screen keyboard over the sheet. With a real keyboard we do place the
+  // caret: on the first template, which is where the task usually comes from.
+  drawTemplates(hasKeyboard());
   drawAlarm();
   drawChips();
-
-  // openSheet deliberately doesn't focus a field — on a phone that throws the
-  // on-screen keyboard over the sheet. With a real keyboard the opposite is
-  // true: "n", type, Enter should add a task without touching the mouse.
-  if (hasKeyboard()) host.querySelector("#addLabel").focus();
 }
 
 export function openEditSheet(t) {
