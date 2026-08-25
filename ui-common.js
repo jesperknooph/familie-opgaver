@@ -1,3 +1,5 @@
+import { keepFocus } from "./keyboard.js";
+
 let updateCallback = () => {};
 
 export function initUiCommon(renderCb) {
@@ -186,7 +188,10 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
 });
 
 export function updateWithTransition(callback) {
-  const cb = callback || updateCallback;
+  // keepFocus wraps the render rather than sitting inside it: a render rewrites
+  // whole regions with innerHTML, so without this every keyboard action —
+  // ticking a task, switching view — would drop focus back to <body>.
+  const cb = () => keepFocus(callback || updateCallback);
   if (document.startViewTransition) {
     document.startViewTransition(cb);
   } else {

@@ -4,6 +4,7 @@ import {
   getDoc,
   setDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { roving, keepFocus } from "./keyboard.js";
 
 // The fixed set of family users. Shared with app.js so there's one source of truth.
 // Default accents follow the Nordlys palette: vivid enough to glow on the
@@ -265,7 +266,13 @@ function renderLogin(resolve) {
       .join("");
   }
 
+  // Each redraw replaces the whole card, so without keepFocus a keyboard user
+  // loses their place the moment anything changes.
   function draw() {
+    keepFocus(paint);
+  }
+
+  function paint() {
     if (step === "who") {
       host.innerHTML = `
         <div class="login-wrap">
@@ -331,6 +338,17 @@ function renderLogin(resolve) {
     if (backStepEl) backStepEl.onclick = backToWho;
     const rememberEl = host.querySelector("#rememberMe");
     if (rememberEl) rememberEl.onchange = (e) => { remember = e.target.checked; };
+
+    // Both screens are grids of buttons: one tab stop, arrows to move. The
+    // keypad especially — twelve separate tab stops for something you can just
+    // type would be nonsense.
+    roving(host.querySelector(".login-avatars"), "[data-pick]", { grid: true });
+    roving(host.querySelector(".keypad"), ".key:not(.key-empty)", { grid: true });
+
+    // Land on a profile so Enter picks one straight away.
+    if (step === "who" && !host.contains(document.activeElement)) {
+      host.querySelector('[data-pick][tabindex="0"]')?.focus();
+    }
   }
 
   document.addEventListener("keydown", onKeydown);

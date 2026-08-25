@@ -23,6 +23,13 @@ import {
 } from "./ui-common.js";
 import { tasksCol, toggleDone, saveLook, showToast } from "./db-service.js";
 import { signOut } from "./auth.js";
+import {
+  roving,
+  keepFocus,
+  setShortcuts,
+  openShortcutSheet,
+  hasKeyboard,
+} from "./keyboard.js";
 
 const KID_CHECK_SVG = `<svg width="22" height="22" viewBox="0 0 24 24"><path d="M5 13l5 5L20 7" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const LOOK_COLORS = ["#7C5CFF", "#FF5E7A", "#38BDF8", "#10B981", "#F97316", "#EF4444", "#14B8A6", "#D946EF"];
@@ -109,11 +116,13 @@ export function kidWeekRows() {
       : stateHtml;
 
     rows += `
-      <div class="kid-day ${isToday ? "kid-today" : ""}" style="${delays}" ${isToday ? 'data-kidgotoday="1" title="Gå til i dag"' : ""}>
+      <${isToday ? "button" : "div"} class="kid-day ${isToday ? "kid-today" : ""}" style="${delays}" ${
+        isToday ? 'data-kidgotoday="1" title="Gå til i dag" aria-label="Gå til i dag"' : ""
+      }>
         <span class="kid-day-name">${DAY_NAMES[i].slice(0, 3)}</span>
         ${middle}
         ${stateDelayed}
-      </div>`;
+      </${isToday ? "button" : "div"}>`;
   }
   return rows;
 }
@@ -134,6 +143,41 @@ function renderKidShell() {
     <button class="kid-fab" id="kidAddBtn" title="Tilføj opgave" aria-label="Tilføj opgave">＋</button>
   `;
   document.getElementById("kidAddBtn").onclick = openKidAddSheet;
+  registerKidShortcuts();
+}
+
+// A shorter list than the parent's — a kid's whole app is "see today, tick it
+// off, add one". Same dispatcher, same ? sheet.
+function registerKidShortcuts() {
+  const setView = (view) => {
+    if (state.kidView === view) return;
+    state.kidView = view;
+    state.kidAnimate = true;
+    updateWithTransition();
+  };
+
+  setShortcuts([
+    { keys: ["n", "N"], showKeys: ["n"], label: "Ny opgave", group: "Handlinger", run: openKidAddSheet },
+    { keys: ["m", "M"], showKeys: ["m"], label: "Lys / mørk", group: "Handlinger", run: toggleTheme },
+    { keys: ["1"], label: "I dag", group: "Visning", run: () => setView("idag") },
+    { keys: ["2"], label: "Min uge", group: "Visning", run: () => setView("uge") },
+    {
+      keys: ["j", "k"],
+      showKeys: ["j", "k"],
+      label: "Hop ned i listen",
+      group: "I listen",
+      run: () => {
+        const start =
+          document.querySelector('#kidList [data-kidtoggle][tabindex="0"]') ||
+          document.querySelector("#kidList [data-kidtoggle]");
+        start?.focus();
+      },
+    },
+    { keys: ["ArrowUp", "ArrowDown"], label: "Forrige / næste opgave", group: "I listen" },
+    { keys: [" "], showKeys: [" "], label: "Kryds af", group: "I listen" },
+    { keys: ["?"], label: "Denne oversigt", group: "Hjælp", run: openShortcutSheet },
+    { keys: ["Escape"], label: "Luk et vindue", group: "Hjælp" },
+  ]);
 }
 
 export function renderKidMode() {
@@ -222,8 +266,8 @@ function updateKidTabs() {
   const el = document.getElementById("kidTabs");
   el.style.animationDelay = state.kidAnimate ? "0.15s" : "";
   el.innerHTML = `
-    <button class="kid-tab ${state.kidView === "idag" ? "active" : ""}" data-kidview="idag">☀️ I dag</button>
-    <button class="kid-tab ${state.kidView === "uge" ? "active" : ""}" data-kidview="uge">📅 Min uge</button>
+    <button class="kid-tab ${state.kidView === "idag" ? "active" : ""}" data-kidview="idag" aria-pressed="${state.kidView === "idag"}">☀️ I dag</button>
+    <button class="kid-tab ${state.kidView === "uge" ? "active" : ""}" data-kidview="uge" aria-pressed="${state.kidView === "uge"}">📅 Min uge</button>
   `;
   el.querySelectorAll("[data-kidview]").forEach((tab) => {
     tab.onclick = () => {
@@ -233,6 +277,7 @@ function updateKidTabs() {
       updateWithTransition();
     };
   });
+  roving(el, "[data-kidview]");
 }
 
 function updateKidList() {
@@ -263,6 +308,9 @@ function updateKidList() {
       updateWithTransition();
     };
   }
+
+  // The day's tasks are one tab stop; ↑/↓ walks them, Enter/Space ticks one off.
+  roving(el, "[data-kidtoggle]", { grid: true });
 }
 
 export function kidToggle(btn) {
@@ -355,16 +403,23 @@ export function openKidAddSheet() {
   host.querySelectorAll("[data-emoji]").forEach((el) => {
     el.onclick = () => {
       emoji = el.dataset.emoji;
-      host.querySelectorAll("[data-emoji]").forEach((b) => b.classList.toggle("active", b === el));
+      host.querySelectorAll("[data-emoji]").forEach((b) => {
+        b.classList.toggle("active", b === el);
+        b.setAttribute("aria-pressed", b === el ? "true" : "false");
+      });
     };
   });
+  roving(host.querySelector(".kid-add-emojis"), "[data-emoji]", { grid: true });
 
   const dateInput = host.querySelector("#kidAddDate");
   const dateChip = host.querySelector("#kidWhenDate");
 
   function selectWhen(val, chip) {
     when = val;
-    host.querySelectorAll("[data-when]").forEach((b) => b.classList.toggle("active", b === chip));
+    host.querySelectorAll("[data-when]").forEach((b) => {
+      b.classList.toggle("active", b === chip);
+      b.setAttribute("aria-pressed", b === chip ? "true" : "false");
+    });
   }
 
   host.querySelectorAll("[data-when]").forEach((el) => {
@@ -423,6 +478,12 @@ export function openKidAddSheet() {
   host.querySelector("#kidAddLabel").onkeydown = (e) => {
     if (e.key === "Enter") save();
   };
+
+  roving(host.querySelector(".kid-when-chips"), "[data-when]");
+
+  // With a real keyboard, "n" then typing should just work. On a tablet the
+  // on-screen keyboard would cover the sheet, so it stays hands-off there.
+  if (hasKeyboard()) host.querySelector("#kidAddLabel").focus();
 }
 
 export function openLookSheet() {
@@ -431,6 +492,10 @@ export function openLookSheet() {
   const faces = [me[0], ...LOOK_FACES];
 
   function draw() {
+    keepFocus(paint);
+  }
+
+  function paint() {
     const face = faceFor(me);
     const color = colorFor(me);
     mount(`
@@ -476,6 +541,9 @@ export function openLookSheet() {
         draw();
       };
     });
+
+    roving(host.querySelector(".kid-emoji-grid"), "[data-face]", { grid: true });
+    roving(host.querySelector(".kid-color-row"), "[data-color]", { grid: true });
   }
 
   draw();

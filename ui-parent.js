@@ -35,6 +35,14 @@ import {
   clearDone,
   showToast,
 } from "./db-service.js";
+import {
+  roving,
+  taskGrid,
+  keepFocus,
+  setShortcuts,
+  openShortcutSheet,
+  hasKeyboard,
+} from "./keyboard.js";
 
 export function renderParentMode() {
   if (!document.getElementById("openAdd")) {
@@ -93,14 +101,14 @@ export function renderParentMode() {
     document.getElementById("settingsBtn").onclick = openSettingsSheet;
   }
 
-  // Update view toggle active classes
+  // Update view toggle active classes. aria-pressed carries the same fact to
+  // screen readers that the colour carries to everyone else.
   document.querySelectorAll("[data-view]").forEach((el) => {
-    if (el.dataset.view === state.view) {
-      el.classList.add("active");
-    } else {
-      el.classList.remove("active");
-    }
+    const on = el.dataset.view === state.view;
+    el.classList.toggle("active", on);
+    el.setAttribute("aria-pressed", on ? "true" : "false");
   });
+  roving(document.getElementById("viewToggle"), "[data-view]");
 
   // Update avatar-row counts & filter status
   const avatarRow = document.getElementById("avatarRow");
@@ -114,6 +122,8 @@ export function renderParentMode() {
         const faceHtml = faceFor(m.name);
         return `
         <button class="avatar ${state.filter === m.name ? "active" : ""}" data-filter="${m.name}"
+          aria-pressed="${state.filter === m.name}"
+          aria-label="Vis kun ${m.name}s opgaver (${counts[m.name]} tilbage)"
           style="border-color:${colorFor(m.name)}; background:${state.filter === m.name ? colorFor(m.name) : "var(--card-bg)"}; view-transition-name: avatar-${m.name};">
           <span class="avatar-initial" style="color:${state.filter === m.name ? "#fff" : colorFor(m.name)}">${faceHtml}</span>
           <span class="avatar-badge" style="background:${state.filter === m.name ? "#fff" : colorFor(m.name)}; color:${state.filter === m.name ? colorFor(m.name) : "#fff"};">${counts[m.name]}</span>
@@ -128,6 +138,7 @@ export function renderParentMode() {
         updateWithTransition();
       };
     });
+    roving(avatarRow, "[data-filter]");
   }
 
   // Update list-container (Liste or Uge or I dag)
@@ -159,6 +170,11 @@ export function renderParentMode() {
           : ""
       }
       <p class="footer-note">Deles automatisk med hele familien</p>
+      ${
+        hasKeyboard()
+          ? `<p class="footer-note kbd-hint">Tryk <kbd class="kbd">?</kbd> for tastaturgenveje</p>`
+          : ""
+      }
     `;
   }
 
@@ -193,11 +209,17 @@ export function renderParentMode() {
 
   const clearDoneEl = document.getElementById("clearDone");
   if (clearDoneEl) clearDoneEl.onclick = clearDone;
+
+  // The whole task list is one tab stop with the arrows moving inside it — see
+  // taskGrid() in keyboard.js. Re-applied here because the rows are new nodes
+  // after every render.
+  taskGrid(listContainer);
 }
 
 function renderShell() {
   const appContainer = document.getElementById("app");
   appContainer.innerHTML = `
+    <a class="skip-link" href="#list-container">Spring til opgaverne</a>
     <header class="header">
       <div class="header-top">
         <h1 class="h1">Opgaver</h1>
@@ -223,7 +245,7 @@ function renderShell() {
       <span class="add-trigger-text">Ny opgave …</span>
     </button>
 
-    <div id="list-container"></div>
+    <div id="list-container" tabindex="-1"></div>
     <div id="footer-container"></div>
   `;
 
@@ -235,6 +257,122 @@ function renderShell() {
       updateWithTransition();
     };
   });
+
+  registerParentShortcuts();
+}
+
+/* Everything a parent does often, one key away. Registered once with the shell;
+   the dispatcher in keyboard.js handles the guards (no shortcuts while typing,
+   or while a sheet is open). */
+function registerParentShortcuts() {
+  const setView = (view) => {
+    state.view = view;
+    updateWithTransition();
+  };
+
+  setShortcuts([
+    { keys: ["n", "N"], showKeys: ["n"], label: "Ny opgave", group: "Handlinger", run: openAddSheet },
+    {
+      keys: ["p", "P"],
+      showKeys: ["p"],
+      label: "Lommepenge",
+      group: "Handlinger",
+      run: openPayoutSheet,
+    },
+    {
+      keys: ["i", "I"],
+      showKeys: ["i"],
+      label: "Indstillinger",
+      group: "Handlinger",
+      run: openSettingsSheet,
+    },
+    {
+      keys: ["m", "M"],
+      showKeys: ["m"],
+      label: "Lys / mørk",
+      group: "Handlinger",
+      run: toggleTheme,
+    },
+    { keys: ["1"], label: "I dag", group: "Visning", run: () => setView("idag") },
+    { keys: ["2"], label: "Liste", group: "Visning", run: () => setView("liste") },
+    { keys: ["3"], label: "Uge", group: "Visning", run: () => setView("uge") },
+    {
+      keys: ["t", "T"],
+      showKeys: ["t"],
+      label: "Tilbage til i dag / denne uge",
+      group: "Visning",
+      run: () => {
+        state.weekOffset = 0;
+        setView("idag");
+      },
+    },
+    {
+      keys: ["ArrowLeft"],
+      label: "Forrige uge",
+      group: "Visning",
+      when: () => state.view === "uge",
+      run: () => {
+        state.weekOffset -= 1;
+        updateWithTransition();
+      },
+    },
+    {
+      keys: ["ArrowRight"],
+      label: "Næste uge",
+      group: "Visning",
+      when: () => state.view === "uge",
+      run: () => {
+        state.weekOffset += 1;
+        updateWithTransition();
+      },
+    },
+    {
+      keys: ["f", "F"],
+      showKeys: ["f"],
+      label: "Skift person-filter",
+      group: "Filter",
+      run: () => {
+        const names = ["alle", ...MEMBERS.map((m) => m.name)];
+        const i = names.indexOf(state.filter);
+        state.filter = names[(i + 1) % names.length];
+        updateWithTransition();
+      },
+    },
+    {
+      keys: ["a", "A", "Escape"],
+      showKeys: ["a", "Escape"],
+      label: "Vis alle igen",
+      group: "Filter",
+      run: () => {
+        if (state.filter === "alle") return;
+        state.filter = "alle";
+        updateWithTransition();
+      },
+    },
+    {
+      keys: ["j", "k"],
+      showKeys: ["j", "k"],
+      label: "Hop ned i opgavelisten",
+      group: "I listen",
+      run: () => {
+        const start =
+          document.querySelector('#list-container .task-body[tabindex="0"]') ||
+          document.querySelector("#list-container .task-body");
+        start?.focus();
+      },
+    },
+
+    // Rows below have no run(): taskGrid() owns these keys once focus is in the
+    // list. They're listed so the cheat sheet tells the whole story.
+    { keys: ["ArrowUp", "ArrowDown"], label: "Forrige / næste opgave", group: "I listen" },
+    { keys: ["ArrowLeft", "ArrowRight"], label: "Afkryds ↔ opgave ↔ slet", group: "I listen" },
+    { keys: ["Enter"], label: "Ret opgaven", group: "I listen" },
+    { keys: ["x"], label: "Kryds af / fortryd", group: "I listen" },
+    { keys: ["Delete"], label: "Slet opgaven", group: "I listen" },
+
+    { keys: ["?"], label: "Denne oversigt", group: "Hjælp", run: openShortcutSheet },
+    { keys: ["Escape"], label: "Luk et vindue", group: "Hjælp" },
+  ]);
 }
 
 export function renderEarnings() {
@@ -280,12 +418,12 @@ export function taskRow(t) {
         ${t.done ? icon("check", colorFor(t.assignedTo)) : icon("circle", "#D6CFE0")}
       </button>
       ${emojiTile}
-      <div class="task-body" data-edit="${t.id}" title="Tryk for at rette">
+      <button class="task-body" data-edit="${t.id}" title="Tryk for at rette" aria-label="Ret ${escapeHtml(t.label)}">
         <span class="task-label ${t.done ? "done" : ""}">${escapeHtml(t.label)}</span>
         <span class="task-assignee" style="color:${colorFor(t.assignedTo)}">${t.assignedTo}${
           t.repeat ? `<span class="task-repeat">🔁 ${state.REPEAT_LABELS[t.repeat] || ""}</span>` : ""
         }${rotationBit}</span>
-      </div>
+      </button>
       ${t.money ? `<span class="task-money">💰 ${t.money} kr</span>` : ""}
       ${t.time ? `<span class="task-time ${t.alarm ? "has-alarm" : ""}">${t.alarm ? "🔔" : "🕐"} ${t.time}</span>` : ""}
       <button class="delete-button" data-delete="${t.id}" aria-label="Slet opgave">${icon("trash", "#D6CFE0", 14)}</button>
@@ -297,7 +435,7 @@ export function listSection(visible) {
     <section class="list">
       ${
         state.filter !== "alle"
-          ? `<div class="filter-note">${state.filter} · <span class="filter-clear" id="clearFilter">vis alle</span></div>`
+          ? `<div class="filter-note">${state.filter} · <button class="filter-clear" id="clearFilter">vis alle</button></div>`
           : ""
       }
       ${
@@ -358,7 +496,7 @@ export function todaySection(visible) {
 
       ${
         state.filter !== "alle"
-          ? `<div class="filter-note">${state.filter} · <span class="filter-clear" id="clearFilter">vis alle</span></div>`
+          ? `<div class="filter-note">${state.filter} · <button class="filter-clear" id="clearFilter">vis alle</button></div>`
           : ""
       }
 
@@ -429,7 +567,7 @@ export function weekSection(visible) {
 
       ${
         state.filter !== "alle"
-          ? `<div class="filter-note">${state.filter} · <span class="filter-clear" id="clearFilter">vis alle</span></div>`
+          ? `<div class="filter-note">${state.filter} · <button class="filter-clear" id="clearFilter">vis alle</button></div>`
           : ""
       }
 
@@ -515,13 +653,14 @@ export function openAddSheet() {
   dueInput.onchange = () => { due = dueInput.value; };
   timeInput.onchange = () => { time = timeInput.value; drawAlarm(); };
 
-  function drawTemplates() {
+  function drawTemplates(focusGallery = false) {
     const toggle = host.querySelector("#addTplToggle");
     toggle.innerHTML = `📋 Skabeloner ${showTpl ? "▴" : "▾"}`;
     toggle.classList.toggle("open", showTpl);
+    toggle.setAttribute("aria-expanded", showTpl ? "true" : "false");
     toggle.onclick = () => {
       showTpl = !showTpl;
-      drawTemplates();
+      drawTemplates(showTpl);
     };
     const gallery = host.querySelector("#addTplGallery");
     if (!showTpl) {
@@ -546,8 +685,17 @@ export function openAddSheet() {
         drawChips();
         showTpl = false;
         drawTemplates();
+        // The template filled the fields in; the next thing anyone does is
+        // adjust the text, so put the caret there rather than back on a
+        // gallery that just closed.
+        host.querySelector("#addLabel").focus();
       };
     });
+    // 30-odd chips would otherwise be 30 tab stops between the toggle and the
+    // text field. One stop, arrows to move — and opening the gallery from the
+    // keyboard jumps straight into it.
+    roving(gallery, "[data-template]", { grid: true });
+    if (focusGallery) gallery.querySelector('[data-template][tabindex="0"]')?.focus();
   }
 
   function drawAlarm() {
@@ -570,19 +718,26 @@ export function openAddSheet() {
     };
   }
 
+  // Redrawing replaces the chip that was just pressed, which on a keyboard means
+  // focus falls to nowhere — keepFocus puts it back on the new copy.
   function drawChips() {
+    keepFocus(paintChips);
+  }
+
+  function paintChips() {
     host.querySelector("#addRepeatRow").innerHTML = `
       <span class="repeat-row-label">Gentag</span>
       <div class="repeat-chips">
         ${state.REPEAT_OPTIONS.map(
-          (o) => `<button class="repeat-chip ${repeat === o.id ? "active" : ""}" data-repeat="${o.id}">${o.label}</button>`
+          (o) => `<button class="repeat-chip ${repeat === o.id ? "active" : ""}" data-repeat="${o.id}" aria-pressed="${repeat === o.id}">${o.label}</button>`
         ).join("")}
       </div>`;
-    
+
     const admin = isAdmin(state.currentUser);
     const assignable = admin ? MEMBERS : MEMBERS.filter((m) => m.name === state.currentUser.name);
     host.querySelector("#addAssignRow").innerHTML = assignable.map(
       (m) => `<button class="assign-chip ${assignees.includes(m.name) ? "active" : ""}" data-assign="${m.name}"
+        aria-pressed="${assignees.includes(m.name)}"
         style="background:${assignees.includes(m.name) ? colorFor(m.name) : "var(--bg-app)"}">${m.name}</button>`
     ).join("");
     host.querySelector("#addAssignHint").textContent = repeat && admin
@@ -612,6 +767,9 @@ export function openAddSheet() {
         drawChips();
       };
     });
+
+    roving(host.querySelector("#addRepeatRow"), "[data-repeat]");
+    roving(host.querySelector("#addAssignRow"), "[data-assign]");
   }
 
   async function save() {
@@ -658,6 +816,11 @@ export function openAddSheet() {
   drawTemplates();
   drawAlarm();
   drawChips();
+
+  // openSheet deliberately doesn't focus a field — on a phone that throws the
+  // on-screen keyboard over the sheet. With a real keyboard the opposite is
+  // true: "n", type, Enter should add a task without touching the mouse.
+  if (hasKeyboard()) host.querySelector("#addLabel").focus();
 }
 
 export function openEditSheet(t) {
@@ -737,18 +900,23 @@ export function openEditSheet(t) {
   }
 
   function drawChips() {
+    keepFocus(paintChips);
+  }
+
+  function paintChips() {
     host.querySelector("#editRepeatRow").innerHTML = `
       <span class="repeat-row-label">Gentag</span>
       <div class="repeat-chips">
         ${state.REPEAT_OPTIONS.map(
-          (o) => `<button class="repeat-chip ${repeat === o.id ? "active" : ""}" data-repeat="${o.id}">${o.label}</button>`
+          (o) => `<button class="repeat-chip ${repeat === o.id ? "active" : ""}" data-repeat="${o.id}" aria-pressed="${repeat === o.id}">${o.label}</button>`
         ).join("")}
       </div>`;
-    
+
     const admin = isAdmin(state.currentUser);
     const shown = admin ? MEMBERS : MEMBERS.filter((m) => assignees.includes(m.name));
     host.querySelector("#editAssignRow").innerHTML = shown.map(
       (m) => `<button class="assign-chip ${assignees.includes(m.name) ? "active" : ""}" data-assign="${m.name}"
+        aria-pressed="${assignees.includes(m.name)}"
         ${admin ? "" : "disabled"} style="background:${assignees.includes(m.name) ? colorFor(m.name) : "var(--bg-app)"}">${m.name}</button>`
     ).join("");
     host.querySelector("#editAssignHint").textContent = repeat
@@ -783,9 +951,12 @@ export function openEditSheet(t) {
         };
       });
     }
+
+    roving(host.querySelector("#editRepeatRow"), "[data-repeat]");
+    roving(host.querySelector("#editAssignRow"), "[data-assign]");
   }
 
-  host.querySelector("#editSave").onclick = async () => {
+  async function save() {
     if (busy) return;
     const labelInput = host.querySelector("#editLabel");
     const label = labelInput.value.trim();
@@ -817,16 +988,33 @@ export function openEditSheet(t) {
       saveBtn.textContent = "Gem";
       showToast("Kunne ikke gemme ændringerne. Er du online?");
     }
+  }
+
+  host.querySelector("#editSave").onclick = save;
+  // Enter saves, same as in the add sheet — retitling a task shouldn't need a
+  // trip to the Gem button.
+  host.querySelector("#editLabel").onkeydown = (e) => {
+    if (e.key === "Enter") save();
   };
 
   drawAlarm();
   drawChips();
+
+  if (hasKeyboard()) {
+    const labelInput = host.querySelector("#editLabel");
+    labelInput.focus();
+    labelInput.setSelectionRange(labelInput.value.length, labelInput.value.length);
+  }
 }
 
 export function openSettingsSheet() {
   const { host, mount, close } = openSheet("settingsSheet");
 
   function draw() {
+    keepFocus(paint);
+  }
+
+  function paint() {
     const dark = document.documentElement.classList.contains("dark");
     mount(`
         <div class="modal-card">
@@ -875,6 +1063,10 @@ export function openResetPanel() {
   }
 
   function draw() {
+    keepFocus(paint);
+  }
+
+  function paint() {
     mount(`
         <div class="modal-card">
           <div class="modal-head">
@@ -994,7 +1186,13 @@ export async function openPayoutSheet() {
     return `${d.getDate()}. ${MONTHS[d.getMonth()]}`;
   }
 
+  // Every action here re-mounts the whole sheet; keepFocus stops that from
+  // dumping the keyboard user back on the dialog card each time.
   function draw() {
+    keepFocus(paint);
+  }
+
+  function paint() {
     const active = MEMBERS.filter(
       (m) => (earned[m.name] || 0) > 0 || paidFor(m.name) > 0
     );
@@ -1093,6 +1291,11 @@ export async function openPayoutSheet() {
       el.onclick = () => {
         payingFor = el.dataset.pay;
         draw();
+        // The button just became an amount field — go straight there with the
+        // suggested amount selected, so typing replaces it.
+        const amount = host.querySelector(".payout-amount");
+        amount?.focus();
+        amount?.select();
       };
     });
     host.querySelectorAll("[data-paycancel]").forEach((el) => {

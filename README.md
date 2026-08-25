@@ -24,6 +24,8 @@ no build step.
 - PIN login per person; "remember me" per device
 - Parent admins (Jesper, Line) can reset anyone's PIN
 - Real-time multi-device sync; works offline and re-syncs when back online
+- **Keyboard-first on desktop**: every control is reachable, the whole task list
+  is a single tab stop with arrow keys inside it, and `?` shows the shortcuts
 
 ## Files
 | File | Purpose |
@@ -32,12 +34,45 @@ no build step.
 | `styles.css` | Visual design |
 | `app.js` | Task logic, views, Firestore real-time listener |
 | `auth.js` | Login gate, PINs, `MEMBERS` list, admin reset |
+| `keyboard.js` | Desktop keyboard navigation: focus that survives re-renders, roving arrow-key groups, the shortcut dispatcher and the `?` cheat sheet |
 | `firebase-config.js` | Firebase init, Firestore, Anonymous Auth (`authReady`) |
 | `firestore.rules` | Security rules (source of truth — paste into console to publish) |
 | `manifest.json` | PWA manifest |
 | `service-worker.js` | Offline caching + installability (bump `CACHE_NAME` on changes) |
 | `netlify.toml` | Static-site deploy config + service-worker cache header |
 | `icons/` | `icon-192.png`, `icon-512.png` |
+
+## Keyboard (desktop)
+Press `?` in the app for the live list — it is generated from the registry in
+`keyboard.js`, so it can never drift from what the keys actually do.
+
+| Key | Does |
+|-----|------|
+| `n` | New task |
+| `1` `2` `3` | I dag / Liste / Uge (kid mode: `1` `2`) |
+| `t` | Back to today / this week |
+| `←` `→` | Previous / next week (in Uge view) |
+| `f` / `a` | Cycle the person filter / show everyone again |
+| `p` `i` `m` | Lommepenge / Indstillinger / light-dark |
+| `j` `k` | Jump into the task list |
+| `↑` `↓` | Previous / next task |
+| `←` `→` | Within a task: tick ↔ task ↔ delete |
+| `Enter` / `x` / `Delete` | Edit / tick off / delete the focused task |
+| `?` / `Esc` | Cheat sheet / close a sheet |
+
+Three mechanisms make it work, all in `keyboard.js`:
+- **`keepFocus(render)`** — renders rewrite regions with `innerHTML`, which drops
+  focus to `<body>`. This re-finds the same control afterwards, and falls back to
+  whatever took its place when the control is gone (a deleted task).
+- **`roving()` / `taskGrid()`** — a group of buttons is one tab stop with the
+  arrows moving inside it (only the current item has `tabindex="0"`). Without it
+  the template gallery alone costs 26 tab presses to walk past.
+- **`setShortcuts()`** — one document-level dispatcher. It stands down while you
+  are typing in a field and while a sheet is open, and leaves the arrow keys to
+  whichever group has focus.
+
+When adding a control, give it a `data-*` hook that is listed in `KEY_ATTRS` if
+focus should survive a re-render on it.
 
 ## Firebase
 - Project: `familie-opgaver-bf88a` (Spark / free tier)
