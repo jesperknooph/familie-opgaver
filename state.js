@@ -9,6 +9,8 @@ export const state = {
   kidAnimate: true,
   allowEarnedPast: null,
   allowPaidOut: null,
+  loans: [],
+  loanPayments: [],
   connected: false,
   // False until the first tasks snapshot lands. Without it an empty state.tasks
   // is indistinguishable from "this family has no tasks", so the app cheerfully
@@ -26,6 +28,8 @@ export const state = {
   // Subscription reference handles
   unsubCompletions: null,
   unsubAllowPayouts: null,
+  unsubLoans: null,
+  unsubLoanPayments: null,
 
   // Pending reminder timers, keyed by task id
   reminderTimers: new Map(),

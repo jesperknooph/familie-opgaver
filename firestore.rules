@@ -90,6 +90,42 @@ service cloud.firestore {
       allow delete: if request.auth != null;
     }
 
+    // --- loans (a parent lends a child money; immutable history) ---
+    // Delete is allowed so a mistaken entry can be undone (which changes the
+    // derived owed balance).
+    function isValidLoan(data) {
+      return data.keys().hasOnly(['name', 'amount', 'reason', 'date', 'ts'])
+        && data.name in memberNames()
+        && data.amount is int && data.amount > 0 && data.amount <= 100000
+        && (!('reason' in data) || data.reason == null
+            || (data.reason is string && data.reason.size() <= 200))
+        && data.date is string && data.date.size() == 10
+        && data.ts is number;
+    }
+
+    match /loans/{loanId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && isValidLoan(request.resource.data);
+      allow update: if false;
+      allow delete: if request.auth != null;
+    }
+
+    // --- loanPayments (repayments against loans; owed = loans − loanPayments) ---
+    function isValidLoanPayment(data) {
+      return data.keys().hasOnly(['name', 'amount', 'date', 'ts'])
+        && data.name in memberNames()
+        && data.amount is int && data.amount > 0 && data.amount <= 100000
+        && data.date is string && data.date.size() == 10
+        && data.ts is number;
+    }
+
+    match /loanPayments/{paymentId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && isValidLoanPayment(request.resource.data);
+      allow update: if false;
+      allow delete: if request.auth != null;
+    }
+
     // --- members (one doc per person: hashed PIN + chosen look) ---
     // `face` (an emoji) and `color` (hex) are the kid-mode "Vælg dit look"
     // customisation; all fields optional so a look can be saved before a PIN

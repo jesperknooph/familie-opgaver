@@ -30,6 +30,8 @@ import {
   tasksCol,
   completionsCol,
   payoutsCol,
+  loansCol,
+  loanPaymentsCol,
   toggleDone,
   removeTask,
   clearDone,
@@ -86,7 +88,12 @@ export function renderParentMode() {
         ? totalEarnedPast + weekMoneyAll - totalPaidOut
         : null;
     const balanceBit = famBalance > 0 ? ` · ${famBalance} kr` : "";
-    
+
+    const totalLoaned = state.loans.reduce((s, l) => s + (l.amount || 0), 0);
+    const totalRepaid = state.loanPayments.reduce((s, p) => s + (p.amount || 0), 0);
+    const totalOwed = totalLoaned - totalRepaid;
+    const loanBit = totalOwed > 0 ? ` · ${totalOwed} kr` : "";
+
     userBar.innerHTML = `
       <span class="user-me">
         <span class="user-dot" style="background:${colorFor(state.currentUser.name)}"></span>
@@ -94,10 +101,12 @@ export function renderParentMode() {
       </span>
       <span class="user-actions">
         <button class="admin-btn" id="payoutBtn">💰 Lommepenge${balanceBit}</button>
+        <button class="admin-btn" id="loanBtn">🏦 Lån${loanBit}</button>
         <button class="theme-btn" id="settingsBtn" title="Indstillinger" aria-label="Indstillinger">⚙️</button>
       </span>
     `;
     document.getElementById("payoutBtn").onclick = openPayoutSheet;
+    document.getElementById("loanBtn").onclick = openLoanSheet;
     document.getElementById("settingsBtn").onclick = openSettingsSheet;
   }
 
@@ -278,6 +287,13 @@ function registerParentShortcuts() {
       label: "Lommepenge",
       group: "Handlinger",
       run: openPayoutSheet,
+    },
+    {
+      keys: ["l", "L"],
+      showKeys: ["l"],
+      label: "Lån",
+      group: "Handlinger",
+      run: openLoanSheet,
     },
     {
       keys: ["i", "I"],
@@ -1350,4 +1366,284 @@ export async function openPayoutSheet() {
   }
 
   load();
+}
+
+// 🏦 Lån: track money a parent lends a child (e.g. for new clothes) and log it
+// being paid back. Mirrors the Lommepenge sheet above, but `loans` and
+// `loanPayments` are already kept live in state (subscribeLoans in
+// db-service.js), so this one reads from there instead of re-querying.
+export function openLoanSheet() {
+  const { host, mount } = openSheet("loanSheet");
+
+  let addingFor = null;
+  let payingFor = null;
+  const loanHistOpen = {};
+  const payHistOpen = {};
+  const busy = {};
+
+  function loanedFor(name) {
+    return state.loans
+      .filter((l) => l.name === name)
+      .reduce((s, l) => s + (l.amount || 0), 0);
+  }
+
+  function repaidFor(name) {
+    return state.loanPayments
+      .filter((p) => p.name === name)
+      .reduce((s, p) => s + (p.amount || 0), 0);
+  }
+
+  async function addLoan(name, amount, reason) {
+    if (busy[name] || !(amount > 0)) return;
+    busy[name] = true;
+    addingFor = null;
+    draw();
+    try {
+      await setDoc(doc(loansCol, uid()), {
+        name,
+        amount,
+        reason: reason || null,
+        date: ymd(new Date()),
+        ts: Date.now(),
+      });
+    } catch (e) {
+      console.error("Loan failed:", e);
+      showToast("Kunne ikke gemme lånet. Er du online?");
+    }
+    busy[name] = false;
+    draw();
+  }
+
+  async function repay(name, amount) {
+    if (busy[name] || !(amount > 0)) return;
+    busy[name] = true;
+    payingFor = null;
+    draw();
+    try {
+      await setDoc(doc(loanPaymentsCol, uid()), {
+        name,
+        amount,
+        date: ymd(new Date()),
+        ts: Date.now(),
+      });
+    } catch (e) {
+      console.error("Loan payment failed:", e);
+      showToast("Kunne ikke gemme betalingen. Er du online?");
+    }
+    busy[name] = false;
+    draw();
+  }
+
+  async function undoLoan(id) {
+    if (!confirm("Fjern dette lån?")) return;
+    try {
+      await deleteDoc(doc(loansCol, id));
+    } catch (e) {
+      console.error("Undo loan failed:", e);
+      showToast("Kunne ikke fjerne lånet. Er du online?");
+    }
+  }
+
+  async function undoRepay(id) {
+    if (!confirm("Fjern denne betaling? Beløbet lægges tilbage til gælden.")) return;
+    try {
+      await deleteDoc(doc(loanPaymentsCol, id));
+    } catch (e) {
+      console.error("Undo loan payment failed:", e);
+      showToast("Kunne ikke fjerne betalingen. Er du online?");
+    }
+  }
+
+  function fmtDate(ds) {
+    const d = parseYmd(ds);
+    return `${d.getDate()}. ${MONTHS[d.getMonth()]}`;
+  }
+
+  // Every action here re-mounts the whole sheet; keepFocus stops that from
+  // dumping the keyboard user back on the dialog card each time.
+  function draw() {
+    keepFocus(paint);
+  }
+
+  function paint() {
+    const kids = MEMBERS.filter((m) => !m.admin);
+    const body = kids
+      .map((m) => {
+        const name = m.name;
+        const loaned = loanedFor(name);
+        const repaid = repaidFor(name);
+        const owed = loaned - repaid;
+        const loans = state.loans
+          .filter((l) => l.name === name)
+          .sort((a, b) => (b.ts || 0) - (a.ts || 0));
+        const payments = state.loanPayments
+          .filter((p) => p.name === name)
+          .sort((a, b) => (b.ts || 0) - (a.ts || 0));
+        const loansShown = loanHistOpen[name] ? loans : loans.slice(0, 5);
+        const loansHidden = loans.length - loansShown.length;
+        const paysShown = payHistOpen[name] ? payments : payments.slice(0, 5);
+        const paysHidden = payments.length - paysShown.length;
+        const isAdding = addingFor === name;
+        const isPaying = payingFor === name;
+        const balLabel = owed > 0 ? "skyldes" : owed < 0 ? "til gode" : "ingen gæld";
+
+        return `
+          <div class="payout-card" style="border-left-color:${colorFor(name)}">
+            <div class="payout-top">
+              <span class="payout-name" style="color:${colorFor(name)}">${name}</span>
+              <span class="payout-balance ${owed > 0 ? "negative" : ""}">${Math.abs(owed)} kr <span class="payout-balance-label">${balLabel}</span></span>
+            </div>
+            ${
+              loaned > 0 || repaid > 0
+                ? `<div class="payout-sub">Lånt i alt ${loaned} kr · Betalt tilbage ${repaid} kr</div>`
+                : ""
+            }
+            ${
+              owed < 0
+                ? `<div class="payout-negative-note">Betalt mere tilbage end lånt — det sker fx når et lån fjernes efter en betaling. Nye lån udligner først overskuddet.</div>`
+                : ""
+            }
+            ${
+              isAdding
+                ? `<div class="loan-add-form">
+                     <input type="text" maxlength="200" class="input loan-reason" placeholder="Til hvad? (fx tøj)" />
+                     <div class="payout-pay-row">
+                       <input type="number" min="1" max="100000" step="1" inputmode="numeric" class="input loan-amount" placeholder="Kr" />
+                       <span class="money-suffix">kr</span>
+                       <button class="btn-primary" data-loanconfirm="${name}" ${busy[name] ? "disabled" : ""}>${busy[name] ? "…" : "Bekræft"}</button>
+                       <button class="btn-ghost" data-loancancel="${name}">Annullér</button>
+                     </div>
+                   </div>`
+                : `<button class="btn-ghost loan-new-btn" data-loannew="${name}" ${busy[name] ? "disabled" : ""}>+ Nyt lån</button>`
+            }
+            ${
+              isPaying
+                ? `<div class="payout-pay-row">
+                     <input type="number" min="1" max="100000" step="1" inputmode="numeric" class="input payout-amount" value="${owed}" />
+                     <span class="money-suffix">kr</span>
+                     <button class="btn-primary" data-payconfirm="${name}" ${busy[name] ? "disabled" : ""}>${busy[name] ? "…" : "Bekræft"}</button>
+                     <button class="btn-ghost" data-paycancel="${name}">Annullér</button>
+                   </div>`
+                : owed > 0
+                  ? `<button class="payout-btn" data-pay="${name}" ${busy[name] ? "disabled" : ""}>Registrér betaling</button>`
+                  : ""
+            }
+            ${
+              loans.length
+                ? `<div class="payout-hist"><div class="payout-hist-label">Lån</div>${loansShown
+                    .map(
+                      (x) =>
+                        `<div class="payout-hist-row"><span class="payout-earn-label">${x.reason ? escapeHtml(x.reason) : "Lån"}</span><span class="payout-hist-date">${fmtDate(x.date)}</span><span class="payout-hist-amt">${x.amount} kr</span><button class="payout-hist-del" data-undoloan="${x.id}" title="Fjern lån" aria-label="Fjern lån">✕</button></div>`
+                    )
+                    .join("")}${
+                    loansHidden > 0
+                      ? `<button class="payout-hist-more" data-loanmore="${name}">Vis alle (${loans.length})</button>`
+                      : ""
+                  }</div>`
+                : ""
+            }
+            ${
+              payments.length
+                ? `<div class="payout-hist"><div class="payout-hist-label">Betalt tilbage</div>${paysShown
+                    .map(
+                      (x) =>
+                        `<div class="payout-hist-row"><span class="payout-hist-date">${fmtDate(x.date)}</span><span class="payout-hist-amt">${x.amount} kr</span><button class="payout-hist-del" data-undopay="${x.id}" title="Fjern betaling" aria-label="Fjern betaling">✕</button></div>`
+                    )
+                    .join("")}${
+                    paysHidden > 0
+                      ? `<button class="payout-hist-more" data-paymore="${name}">Vis alle (${payments.length})</button>`
+                      : ""
+                  }</div>`
+                : ""
+            }
+          </div>`;
+      })
+      .join("");
+
+    mount(`
+        <div class="modal-card">
+          <div class="modal-head">
+            <h2 class="modal-title">🏦 Lån</h2>
+            <button class="modal-close" data-close="1" aria-label="Luk">✕</button>
+          </div>
+          <p class="modal-sub">Skyldigt beløb = lånt minus betalt tilbage.</p>
+          <div class="payout-list">${body}</div>
+        </div>`);
+
+    host.querySelectorAll("[data-loannew]").forEach((el) => {
+      el.onclick = () => {
+        addingFor = el.dataset.loannew;
+        payingFor = null;
+        draw();
+        host.querySelector(".loan-reason")?.focus();
+      };
+    });
+    host.querySelectorAll("[data-loancancel]").forEach((el) => {
+      el.onclick = () => {
+        addingFor = null;
+        draw();
+      };
+    });
+    host.querySelectorAll("[data-loanconfirm]").forEach((el) => {
+      el.onclick = () => {
+        const name = el.dataset.loanconfirm;
+        const amountInput = host.querySelector(".loan-amount");
+        const reasonInput = host.querySelector(".loan-reason");
+        const amt = Math.round(Number(amountInput.value));
+        if (!(amt > 0)) return fieldError(amountInput, "Skriv et beløb større end 0.");
+        addLoan(name, amt, reasonInput.value.trim());
+      };
+    });
+    host.querySelector(".loan-amount")?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") host.querySelector("[data-loanconfirm]")?.click();
+    });
+    host.querySelectorAll("[data-pay]").forEach((el) => {
+      el.onclick = () => {
+        payingFor = el.dataset.pay;
+        addingFor = null;
+        draw();
+        const amount = host.querySelector(".payout-amount");
+        amount?.focus();
+        amount?.select();
+      };
+    });
+    host.querySelectorAll("[data-paycancel]").forEach((el) => {
+      el.onclick = () => {
+        payingFor = null;
+        draw();
+      };
+    });
+    host.querySelectorAll("[data-payconfirm]").forEach((el) => {
+      el.onclick = () => {
+        const name = el.dataset.payconfirm;
+        const amountInput = host.querySelector(".payout-amount");
+        const amt = Math.round(Number(amountInput.value));
+        if (!(amt > 0)) return fieldError(amountInput, "Skriv et beløb større end 0.");
+        repay(name, amt);
+      };
+    });
+    host.querySelector(".payout-amount")?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") host.querySelector("[data-payconfirm]")?.click();
+    });
+    host.querySelectorAll("[data-undoloan]").forEach((el) => {
+      el.onclick = () => undoLoan(el.dataset.undoloan);
+    });
+    host.querySelectorAll("[data-undopay]").forEach((el) => {
+      el.onclick = () => undoRepay(el.dataset.undopay);
+    });
+    host.querySelectorAll("[data-loanmore]").forEach((el) => {
+      el.onclick = () => {
+        loanHistOpen[el.dataset.loanmore] = true;
+        draw();
+      };
+    });
+    host.querySelectorAll("[data-paymore]").forEach((el) => {
+      el.onclick = () => {
+        payHistOpen[el.dataset.paymore] = true;
+        draw();
+      };
+    });
+  }
+
+  paint();
 }

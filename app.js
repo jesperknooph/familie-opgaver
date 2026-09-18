@@ -8,6 +8,7 @@ import {
   initDbService,
   subscribeCompletions,
   loadAllowance,
+  subscribeLoans,
   membersCol,
   tasksCol,
 } from "./db-service.js";
@@ -95,5 +96,6 @@ state.lastSeenDay = ymd(new Date());
 render();
 subscribeCompletions();
 loadAllowance();
+subscribeLoans();
 scheduleMidnightRefresh();
 setupVisibilityListener();

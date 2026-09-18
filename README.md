@@ -20,6 +20,10 @@ no build step.
   tally and each kid's own view. A parents-only **💰 Lommepenge** ledger tracks a
   running "til gode" balance per child (all-time earned − paid) with a **Betal ud**
   action that records each payout as durable history
+- **Loans (kr)**: a parents-only **🏦 Lån** ledger tracks money lent to a child
+  (e.g. an advance for clothes) against a running "skyldes" balance (all-time
+  lent − repaid), with an optional reason per loan and a **Registrér betaling**
+  action that logs each repayment as durable history
 - Deleting shows a brief "Fortryd" undo snackbar
 - PIN login per person; "remember me" per device
 - Parent admins (Jesper, Line) can reset anyone's PIN
@@ -53,7 +57,7 @@ Press `?` in the app for the live list — it is generated from the registry in
 | `t` | Back to today / this week |
 | `←` `→` | Previous / next week (in Uge view) |
 | `f` / `a` | Cycle the person filter / show everyone again |
-| `p` `i` `m` | Lommepenge / Indstillinger / light-dark |
+| `p` `l` `i` `m` | Lommepenge / Lån / Indstillinger / light-dark |
 | `j` `k` | Jump into the task list |
 | `↑` `↓` | Previous / next task |
 | `←` `→` | Within a task: tick ↔ task ↔ delete |
@@ -88,6 +92,13 @@ focus should survive a re-render on it.
     A child's "til gode" balance is derived, never stored: all-time kr earned
     (summed from `completions.money`) minus all-time kr paid out (summed from
     `payouts.amount`). Payouts are immutable history (deletable to undo)
+  - `loans` — one doc per loan handed to a child: `{ name, amount, reason, date, ts }`
+    (`reason` optional, e.g. "tøj")
+  - `loanPayments` — one doc per repayment: `{ name, amount, date, ts }`. A
+    child's "skyldes" balance is derived, never stored: all-time kr lent
+    (`loans.amount`) minus all-time kr repaid (`loanPayments.amount`). Both
+    collections are immutable history (deletable to undo), and both are kept
+    live in full (unlike `completions`, this history stays small)
   - `members` — one doc per person (`{ pinHash }`); PINs are hashed, not plaintext
 - Auth: **Anonymous Authentication** — each device silently gets a token so the
   security rules can require an authenticated request. (This is not per-person

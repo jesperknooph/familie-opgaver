@@ -20,6 +20,8 @@ export const tasksCol = collection(db, "tasks");
 export const completionsCol = collection(db, "completions");
 export const payoutsCol = collection(db, "payouts");
 export const membersCol = collection(db, "members");
+export const loansCol = collection(db, "loans");
+export const loanPaymentsCol = collection(db, "loanPayments");
 
 let updateCallback = () => {};
 
@@ -150,6 +152,33 @@ export async function loadAllowance() {
       updateCallback();
     },
     (err) => console.warn("Payouts sync error:", err)
+  );
+}
+
+// Loan ledger ("🏦 Lån"): a parent lends a child money (`loans`) and later
+// logs it being paid back (`loanPayments`). Owed balance is derived — lent
+// minus repaid — same shape as the allowance "til gode" balance, but unlike
+// `completions` this history stays tiny, so it's kept live in full rather
+// than cached per week.
+export function subscribeLoans() {
+  if (state.unsubLoans) state.unsubLoans();
+  state.unsubLoans = onSnapshot(
+    loansCol,
+    (snap) => {
+      state.loans = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      updateCallback();
+    },
+    (err) => console.warn("Loans sync error (are the new rules published?):", err)
+  );
+
+  if (state.unsubLoanPayments) state.unsubLoanPayments();
+  state.unsubLoanPayments = onSnapshot(
+    loanPaymentsCol,
+    (snap) => {
+      state.loanPayments = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      updateCallback();
+    },
+    (err) => console.warn("Loan payments sync error (are the new rules published?):", err)
   );
 }
 
