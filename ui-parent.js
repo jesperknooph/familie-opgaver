@@ -1442,6 +1442,7 @@ export function openLoanSheet() {
       console.error("Undo loan failed:", e);
       showToast("Kunne ikke fjerne lånet. Er du online?");
     }
+    draw();
   }
 
   async function undoRepay(id) {
@@ -1452,6 +1453,7 @@ export function openLoanSheet() {
       console.error("Undo loan payment failed:", e);
       showToast("Kunne ikke fjerne betalingen. Er du online?");
     }
+    draw();
   }
 
   function fmtDate(ds) {
