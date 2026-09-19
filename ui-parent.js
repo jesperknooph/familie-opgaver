@@ -1345,6 +1345,7 @@ export async function openPayoutSheet() {
         const amountInput = host.querySelector(".payout-amount");
         const amt = Math.round(Number(amountInput.value));
         if (!(amt > 0)) return fieldError(amountInput, "Skriv et beløb større end 0.");
+        if (amt > 100000) return fieldError(amountInput, "Beløbet må højst være 100.000 kr.");
         pay(name, amt);
       };
     });
