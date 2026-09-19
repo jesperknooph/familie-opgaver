@@ -1377,6 +1377,8 @@ export function openLoanSheet() {
 
   let addingFor = null;
   let payingFor = null;
+  let addDraft = { amount: "", reason: "" };
+  let payDraft = "";
   const loanHistOpen = {};
   const payHistOpen = {};
   const busy = {};
@@ -1396,7 +1398,6 @@ export function openLoanSheet() {
   async function addLoan(name, amount, reason) {
     if (busy[name] || !(amount > 0)) return;
     busy[name] = true;
-    addingFor = null;
     draw();
     try {
       await setDoc(doc(loansCol, uid()), {
@@ -1406,6 +1407,8 @@ export function openLoanSheet() {
         date: ymd(new Date()),
         ts: Date.now(),
       });
+      addingFor = null;
+      addDraft = { amount: "", reason: "" };
     } catch (e) {
       console.error("Loan failed:", e);
       showToast("Kunne ikke gemme lånet. Er du online?");
@@ -1417,7 +1420,6 @@ export function openLoanSheet() {
   async function repay(name, amount) {
     if (busy[name] || !(amount > 0)) return;
     busy[name] = true;
-    payingFor = null;
     draw();
     try {
       await setDoc(doc(loanPaymentsCol, uid()), {
@@ -1426,6 +1428,8 @@ export function openLoanSheet() {
         date: ymd(new Date()),
         ts: Date.now(),
       });
+      payingFor = null;
+      payDraft = "";
     } catch (e) {
       console.error("Loan payment failed:", e);
       showToast("Kunne ikke gemme betalingen. Er du online?");
@@ -1435,7 +1439,7 @@ export function openLoanSheet() {
   }
 
   async function undoLoan(id) {
-    if (!confirm("Fjern dette lån?")) return;
+    if (!confirm("Fjern dette lån? Beløbet trækkes fra det skyldige beløb.")) return;
     try {
       await deleteDoc(doc(loansCol, id));
     } catch (e) {
@@ -1508,9 +1512,9 @@ export function openLoanSheet() {
             ${
               isAdding
                 ? `<div class="loan-add-form">
-                     <input type="text" maxlength="200" class="input loan-reason" placeholder="Til hvad? (fx tøj)" />
+                     <input type="text" maxlength="200" class="input loan-reason" placeholder="Til hvad? (fx tøj)" value="${escapeHtml(addDraft.reason)}" />
                      <div class="payout-pay-row">
-                       <input type="number" min="1" max="100000" step="1" inputmode="numeric" class="input loan-amount" placeholder="Kr" />
+                       <input type="number" min="1" max="100000" step="1" inputmode="numeric" class="input loan-amount" placeholder="Kr" value="${escapeHtml(addDraft.amount)}" />
                        <span class="money-suffix">kr</span>
                        <button class="btn-primary" data-loanconfirm="${name}" ${busy[name] ? "disabled" : ""}>${busy[name] ? "…" : "Bekræft"}</button>
                        <button class="btn-ghost" data-loancancel="${name}">Annullér</button>
@@ -1521,7 +1525,7 @@ export function openLoanSheet() {
             ${
               isPaying
                 ? `<div class="payout-pay-row">
-                     <input type="number" min="1" max="100000" step="1" inputmode="numeric" class="input payout-amount" value="${owed}" />
+                     <input type="number" min="1" max="100000" step="1" inputmode="numeric" class="input payout-amount" value="${payDraft || owed}" />
                      <span class="money-suffix">kr</span>
                      <button class="btn-primary" data-payconfirm="${name}" ${busy[name] ? "disabled" : ""}>${busy[name] ? "…" : "Bekræft"}</button>
                      <button class="btn-ghost" data-paycancel="${name}">Annullér</button>
@@ -1575,6 +1579,7 @@ export function openLoanSheet() {
     host.querySelectorAll("[data-loannew]").forEach((el) => {
       el.onclick = () => {
         addingFor = el.dataset.loannew;
+        addDraft = { amount: "", reason: "" };
         payingFor = null;
         draw();
         host.querySelector(".loan-reason")?.focus();
@@ -1583,6 +1588,7 @@ export function openLoanSheet() {
     host.querySelectorAll("[data-loancancel]").forEach((el) => {
       el.onclick = () => {
         addingFor = null;
+        addDraft = { amount: "", reason: "" };
         draw();
       };
     });
@@ -1593,6 +1599,8 @@ export function openLoanSheet() {
         const reasonInput = host.querySelector(".loan-reason");
         const amt = Math.round(Number(amountInput.value));
         if (!(amt > 0)) return fieldError(amountInput, "Skriv et beløb større end 0.");
+        if (amt > 100000) return fieldError(amountInput, "Beløbet må højst være 100.000 kr.");
+        addDraft = { amount: amountInput.value, reason: reasonInput.value };
         addLoan(name, amt, reasonInput.value.trim());
       };
     });
@@ -1602,6 +1610,7 @@ export function openLoanSheet() {
     host.querySelectorAll("[data-pay]").forEach((el) => {
       el.onclick = () => {
         payingFor = el.dataset.pay;
+        payDraft = "";
         addingFor = null;
         draw();
         const amount = host.querySelector(".payout-amount");
@@ -1612,6 +1621,7 @@ export function openLoanSheet() {
     host.querySelectorAll("[data-paycancel]").forEach((el) => {
       el.onclick = () => {
         payingFor = null;
+        payDraft = "";
         draw();
       };
     });
@@ -1621,6 +1631,8 @@ export function openLoanSheet() {
         const amountInput = host.querySelector(".payout-amount");
         const amt = Math.round(Number(amountInput.value));
         if (!(amt > 0)) return fieldError(amountInput, "Skriv et beløb større end 0.");
+        if (amt > 100000) return fieldError(amountInput, "Beløbet må højst være 100.000 kr.");
+        payDraft = amountInput.value;
         repay(name, amt);
       };
     });
